@@ -36,9 +36,9 @@ echo.
 echo ============================================================
 echo  Done.
 echo.
-echo  devboard-auth   ->  http://localhost:8001
-echo  devboard-email  ->  http://localhost:8002
-echo  devboard-core   ->  http://localhost:8003
+echo  devboard-auth  : http://localhost:8001
+echo  devboard-email : http://localhost:8002
+echo  devboard-core  : http://localhost:8003
 echo ============================================================
 echo.
 
