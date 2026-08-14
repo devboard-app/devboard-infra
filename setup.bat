@@ -6,6 +6,7 @@ set INFRA_DIR=%ROOT%
 set AUTH_DIR=%ROOT%..\devboard-auth
 set EMAIL_DIR=%ROOT%..\devboard-email
 set CORE_DIR=%ROOT%..\devboard-core
+set WORK_DIR=%ROOT%..\devboard-work
 
 echo.
 echo ============================================================
@@ -38,8 +39,14 @@ if not exist "%CORE_DIR%\.env" (
     copy "%CORE_DIR%\.env.example" "%CORE_DIR%\.env" >nul
 )
 
+if not exist "%WORK_DIR%\.env" (
+    echo [WARN] devboard-work\.env not found.
+    echo        Copying from .env.example — fill in the real values before running.
+    copy "%WORK_DIR%\.env.example" "%WORK_DIR%\.env" >nul
+)
+
 :: ── Start DB ─────────────────────────────────────────────────
-echo [1/5] Starting database...
+echo [1/6] Starting database...
 echo       (First run may take a moment)
 echo.
 
@@ -62,7 +69,7 @@ echo       Done.
 echo.
 
 :: ── Create service users and databases ───────────────────────
-echo [2/5] Setting up service users and databases...
+echo [2/6] Setting up service users and databases...
 
 for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^POSTGRES_USER' | ForEach-Object { $_ -replace 'POSTGRES_USER=', '' }"`) do set PG_USER=%%i
 
@@ -103,10 +110,29 @@ if errorlevel 1 (
 ) else (
     echo       core_db already exists, skipping.
 )
+
+:: work_user + work_db
+docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_roles WHERE rolname='work_user'" | findstr "1" >nul 2>&1
+if errorlevel 1 (
+    for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%WORK_DIR%\.env') | Select-String '^DB_PASSWORD' | ForEach-Object { $_ -replace 'DB_PASSWORD=', '' }"`) do set WORK_PASS=%%i
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER work_user WITH PASSWORD '%WORK_PASS%';"
+    echo       work_user created.
+) else (
+    echo       work_user already exists, skipping.
+)
+
+docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_database WHERE datname='work_db'" | findstr "1" >nul 2>&1
+if errorlevel 1 (
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE DATABASE work_db OWNER work_user;"
+    docker exec devboard-db psql -U %PG_USER% -c "GRANT ALL PRIVILEGES ON DATABASE work_db TO work_user;"
+    echo       work_db created.
+) else (
+    echo       work_db already exists, skipping.
+)
 echo.
 
 :: ── Build and start auth ──────────────────────────────────────
-echo [3/5] Building and starting devboard-auth...
+echo [3/6] Building and starting devboard-auth...
 docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -124,7 +150,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start core ──────────────────────────────────────
-echo [4/5] Building and starting devboard-core...
+echo [4/6] Building and starting devboard-core...
 docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -142,7 +168,24 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start email ─────────────────────────────────────
-echo [5/5] Building and starting devboard-email...
+echo [5/6] Building and starting devboard-work...
+docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] devboard-work compose failed. Check the output above.
+    exit /b 1
+)
+
+echo       Running Django migrations...
+docker compose -f "%WORK_DIR%\docker-compose.yml" exec devboard-work python manage.py migrate
+
+if errorlevel 1 (
+    echo [WARN] Django migrations failed.
+)
+echo.
+
+echo [6/6] Building and starting devboard-email...
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -158,6 +201,7 @@ echo.
 echo  devboard-auth  : http://localhost:8001
 echo  devboard-email : http://localhost:8002
 echo  devboard-core  : http://localhost:8003
+echo  devboard-work  : http://localhost:8004
 echo  PostgreSQL     : localhost:5432
 echo.
 echo  To stop everything: stop.bat

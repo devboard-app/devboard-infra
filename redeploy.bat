@@ -5,33 +5,94 @@ set ROOT=%~dp0
 set AUTH_DIR=%ROOT%..\devboard-auth
 set EMAIL_DIR=%ROOT%..\devboard-email
 set CORE_DIR=%ROOT%..\devboard-core
+set WORK_DIR=%ROOT%..\devboard-work
 
 echo.
 echo ============================================================
 echo  DevBoard Redeploy
 echo ============================================================
 echo.
+echo  0 - All services
+echo  1 - devboard-core
+echo  2 - devboard-auth
+echo  3 - devboard-email
+echo  4 - devboard-work
+echo.
+set /p CHOICE="Select service to redeploy: "
 
-echo Rebuilding and restarting app containers...
+if "%CHOICE%"=="0" goto ALL
+if "%CHOICE%"=="1" goto CORE
+if "%CHOICE%"=="2" goto AUTH
+if "%CHOICE%"=="3" goto EMAIL
+if "%CHOICE%"=="4" goto WORK
 
+echo Invalid choice.
+exit /b 1
+
+:ALL
+call :RUN_AUTH
+call :RUN_CORE
+call :RUN_EMAIL
+call :RUN_WORK
+goto DONE
+
+:AUTH
+call :RUN_AUTH
+goto DONE
+
+:CORE
+call :RUN_CORE
+goto DONE
+
+:EMAIL
+call :RUN_EMAIL
+goto DONE
+
+:WORK
+call :RUN_WORK
+goto DONE
+
+:RUN_AUTH
+echo Redeploying devboard-auth...
 docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d devboard-auth
 if errorlevel 1 (
+    echo.
     echo [ERROR] devboard-auth redeploy failed.
     exit /b 1
 )
+exit /b 0
 
+:RUN_CORE
+echo Redeploying devboard-core...
 docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
+    echo.
     echo [ERROR] devboard-core redeploy failed.
     exit /b 1
 )
+exit /b 0
 
+:RUN_EMAIL
+echo Redeploying devboard-email...
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
+    echo.
     echo [ERROR] devboard-email redeploy failed.
     exit /b 1
 )
+exit /b 0
 
+:RUN_WORK
+echo Redeploying devboard-work...
+docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
+if errorlevel 1 (
+    echo.
+    echo [ERROR] devboard-work redeploy failed.
+    exit /b 1
+)
+exit /b 0
+
+:DONE
 echo.
 echo ============================================================
 echo  Done.
@@ -39,6 +100,7 @@ echo.
 echo  devboard-auth   ->  http://localhost:8001
 echo  devboard-email  ->  http://localhost:8002
 echo  devboard-core   ->  http://localhost:8003
+echo  devboard-work   ->  http://localhost:8004
 echo ============================================================
 echo.
 
