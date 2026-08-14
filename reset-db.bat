@@ -6,6 +6,7 @@ set INFRA_DIR=%ROOT%
 set AUTH_DIR=%ROOT%..\devboard-auth
 set EMAIL_DIR=%ROOT%..\devboard-email
 set CORE_DIR=%ROOT%..\devboard-core
+set WORK_DIR=%ROOT%..\devboard-work
 set DUMP_FILE=%ROOT%auth_db_backup.dump
 
 echo.
@@ -36,6 +37,7 @@ echo.
 :: ── Tear down all containers and wipe volume ─────────────────
 echo [2/5] Stopping containers and wiping DB volume...
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" down
+docker compose -f "%WORK_DIR%\docker-compose.yml" down
 docker compose -f "%CORE_DIR%\docker-compose.yml" down
 docker compose -f "%AUTH_DIR%\docker-compose.yml" down
 docker compose -f "%INFRA_DIR%docker-compose.yml" down -v
@@ -86,6 +88,11 @@ docker exec devboard-db psql -U %PG_USER% -c "CREATE USER core_user WITH PASSWOR
 docker exec devboard-db psql -U %PG_USER% -c "CREATE DATABASE core_db OWNER core_user;" >nul
 docker exec devboard-db psql -U %PG_USER% -c "GRANT ALL PRIVILEGES ON DATABASE core_db TO core_user;" >nul
 
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%WORK_DIR%\.env') | Select-String '^DB_PASSWORD' | ForEach-Object { $_ -replace 'DB_PASSWORD=', '' }"`) do set WORK_PASS=%%i
+docker exec devboard-db psql -U %PG_USER% -c "CREATE USER work_user WITH PASSWORD '%WORK_PASS%';" >nul
+docker exec devboard-db psql -U %PG_USER% -c "CREATE DATABASE work_db OWNER work_user;" >nul
+docker exec devboard-db psql -U %PG_USER% -c "GRANT ALL PRIVILEGES ON DATABASE work_db TO work_user;" >nul
+
 echo       Done.
 echo.
 
@@ -93,6 +100,7 @@ echo.
 echo [5/5] Starting all services...
 docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d
 docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
+docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
     echo [ERROR] Failed to start services.
@@ -107,6 +115,7 @@ echo.
 echo  devboard-auth   ->  http://localhost:8001
 echo  devboard-email  ->  http://localhost:8002
 echo  devboard-core   ->  http://localhost:8003
+echo  devboard-work   ->  http://localhost:8004
 echo  PostgreSQL      ->  localhost:5432
 echo ============================================================
 echo.
