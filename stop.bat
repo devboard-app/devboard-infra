@@ -7,6 +7,7 @@ set AUTH_DIR=%ROOT%..\devboard-auth
 set EMAIL_DIR=%ROOT%..\devboard-email
 set CORE_DIR=%ROOT%..\devboard-core
 set WORK_DIR=%ROOT%..\devboard-work
+set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set DUMP_FILE=%ROOT%auth_db_backup.dump
 
 echo.
@@ -29,6 +30,7 @@ echo.
 
 :: ── Stop all containers ───────────────────────────────────────
 echo [2/2] Stopping all containers...
+docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" down
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" down
 docker compose -f "%WORK_DIR%\docker-compose.yml" down
 docker compose -f "%CORE_DIR%\docker-compose.yml" down

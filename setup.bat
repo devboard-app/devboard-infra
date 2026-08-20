@@ -7,6 +7,7 @@ set AUTH_DIR=%ROOT%..\devboard-auth
 set EMAIL_DIR=%ROOT%..\devboard-email
 set CORE_DIR=%ROOT%..\devboard-core
 set WORK_DIR=%ROOT%..\devboard-work
+set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 
 echo.
 echo ============================================================
@@ -43,6 +44,12 @@ if not exist "%WORK_DIR%\.env" (
     echo [WARN] devboard-work\.env not found.
     echo        Copying from .env.example — fill in the real values before running.
     copy "%WORK_DIR%\.env.example" "%WORK_DIR%\.env" >nul
+)
+
+if not exist "%INTEGRATIONS_DIR%\.env" (
+    echo [WARN] devboard-integrations\.env not found.
+    echo        Copying from .env.example — fill in the real values before running.
+    copy "%INTEGRATIONS_DIR%\.env.example" "%INTEGRATIONS_DIR%\.env" >nul
 )
 
 :: ── Start DB ─────────────────────────────────────────────────
@@ -129,10 +136,29 @@ if errorlevel 1 (
 ) else (
     echo       work_db already exists, skipping.
 )
+
+:: integrations_user + integrations_db
+docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_roles WHERE rolname='integrations_user'" | findstr "1" >nul 2>&1
+if errorlevel 1 (
+    for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INTEGRATIONS_DIR%\.env') | Select-String '^DB_PASSWORD' | ForEach-Object { $_ -replace 'DB_PASSWORD=', '' }"`) do set INTEGRATIONS_PASS=%%i
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER integrations_user WITH PASSWORD '%INTEGRATIONS_PASS%';"
+    echo       integrations_user created.
+) else (
+    echo       integrations_user already exists, skipping.
+)
+
+docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_database WHERE datname='integrations_db'" | findstr "1" >nul 2>&1
+if errorlevel 1 (
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE DATABASE integrations_db OWNER integrations_user;"
+    docker exec devboard-db psql -U %PG_USER% -c "GRANT ALL PRIVILEGES ON DATABASE integrations_db TO integrations_user;"
+    echo       integrations_db created.
+) else (
+    echo       integrations_db already exists, skipping.
+)
 echo.
 
 :: ── Build and start auth ──────────────────────────────────────
-echo [3/6] Building and starting devboard-auth...
+echo [3/7] Building and starting devboard-auth...
 docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -150,7 +176,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start core ──────────────────────────────────────
-echo [4/6] Building and starting devboard-core...
+echo [4/7] Building and starting devboard-core...
 docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -168,7 +194,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start email ─────────────────────────────────────
-echo [5/6] Building and starting devboard-work...
+echo [5/7] Building and starting devboard-work...
 docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -185,7 +211,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [6/6] Building and starting devboard-email...
+echo [6/7] Building and starting devboard-email...
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -193,16 +219,36 @@ if errorlevel 1 (
     echo [ERROR] devboard-email compose failed. Check the output above.
     exit /b 1
 )
+echo.
+
+:: ── Build and start integrations ──────────────────────────────
+echo [7/7] Building and starting devboard-integrations...
+docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" up --build -d
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] devboard-integrations compose failed. Check the output above.
+    exit /b 1
+)
+
+echo       Running alembic migrations...
+docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" exec devboard-integrations alembic upgrade head
+
+if errorlevel 1 (
+    echo [WARN] Migrations failed or alembic not available in container.
+)
 
 echo.
 echo ============================================================
 echo  All services are running.
 echo.
-echo  devboard-auth  : http://localhost:8001
-echo  devboard-email : http://localhost:8002
-echo  devboard-core  : http://localhost:8003
-echo  devboard-work  : http://localhost:8004
-echo  PostgreSQL     : localhost:5432
+echo  devboard-auth         : http://localhost:8001
+echo  devboard-email        : http://localhost:8002
+echo  devboard-core         : http://localhost:8003
+echo  devboard-work         : http://localhost:8004
+echo  devboard-integrations : http://localhost:8005
+echo  PostgreSQL            : localhost:5432
+echo  Redis                 : localhost:6379
 echo.
 echo  To stop everything: stop.bat
 echo ============================================================
