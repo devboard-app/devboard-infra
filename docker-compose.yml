@@ -28,8 +28,28 @@ services:
     networks:
       - devboard-network
 
+  mongo:
+    image: mongo:7
+    container_name: devboard-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - devboard_mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - devboard-network
+
 volumes:
   devboard_pgdata:
+  devboard_mongodata:
 
 networks:
   devboard-network:

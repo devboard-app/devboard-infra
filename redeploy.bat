@@ -7,6 +7,7 @@ set EMAIL_DIR=%ROOT%..\devboard-email
 set CORE_DIR=%ROOT%..\devboard-core
 set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
+set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 
 set SUMMARY_FILE=%TEMP%\devboard_redeploy_summary.txt
 if exist "%SUMMARY_FILE%" del "%SUMMARY_FILE%"
@@ -22,6 +23,7 @@ echo  2 - devboard-auth
 echo  3 - devboard-email
 echo  4 - devboard-work
 echo  5 - devboard-integrations
+echo  6 - devboard-analytics
 echo.
 set /p CHOICE="Select service to redeploy: "
 
@@ -31,6 +33,7 @@ if "%CHOICE%"=="2" goto AUTH
 if "%CHOICE%"=="3" goto EMAIL
 if "%CHOICE%"=="4" goto WORK
 if "%CHOICE%"=="5" goto INTEGRATIONS
+if "%CHOICE%"=="6" goto ANALYTICS
 
 echo Invalid choice.
 exit /b 1
@@ -41,6 +44,7 @@ call :RUN_CORE
 call :RUN_EMAIL
 call :RUN_WORK
 call :RUN_INTEGRATIONS
+call :RUN_ANALYTICS
 goto DONE
 
 :AUTH
@@ -61,6 +65,10 @@ goto DONE
 
 :INTEGRATIONS
 call :RUN_INTEGRATIONS
+goto DONE
+
+:ANALYTICS
+call :RUN_ANALYTICS
 goto DONE
 
 :RUN_AUTH
@@ -110,6 +118,16 @@ if errorlevel 1 (
     echo   [FAILED] devboard-integrations ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
     echo   [OK]     devboard-integrations ->  http://localhost:8005 >> "%SUMMARY_FILE%"
+)
+exit /b 0
+
+:RUN_ANALYTICS
+echo Redeploying devboard-analytics...
+docker compose -f "%ANALYTICS_DIR%\docker-compose.yml" up --build -d
+if errorlevel 1 (
+    echo   [FAILED] devboard-analytics    ->  check docker logs >> "%SUMMARY_FILE%"
+) else (
+    echo   [OK]     devboard-analytics    ->  http://localhost:8006 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 

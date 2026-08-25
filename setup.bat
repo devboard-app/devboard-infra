@@ -8,6 +8,7 @@ set EMAIL_DIR=%ROOT%..\devboard-email
 set CORE_DIR=%ROOT%..\devboard-core
 set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
+set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 
 echo.
 echo ============================================================
@@ -52,8 +53,14 @@ if not exist "%INTEGRATIONS_DIR%\.env" (
     copy "%INTEGRATIONS_DIR%\.env.example" "%INTEGRATIONS_DIR%\.env" >nul
 )
 
+if not exist "%ANALYTICS_DIR%\.env" (
+    echo [WARN] devboard-analytics\.env not found.
+    echo        Copying from .env.example — fill in the real values before running.
+    copy "%ANALYTICS_DIR%\.env.example" "%ANALYTICS_DIR%\.env" >nul
+)
+
 :: ── Start DB ─────────────────────────────────────────────────
-echo [1/6] Starting database...
+echo [1/8] Starting database...
 echo       (First run may take a moment)
 echo.
 
@@ -75,8 +82,18 @@ if errorlevel 1 (
 echo       Done.
 echo.
 
+echo       Waiting for Mongo to be healthy...
+:wait_loop_mongo
+docker inspect --format="{{.State.Health.Status}}" devboard-mongo | findstr "healthy" >nul 2>&1
+if errorlevel 1 (
+    timeout /t 2 >nul
+    goto wait_loop_mongo
+)
+echo       Done.
+echo.
+
 :: ── Create service users and databases ───────────────────────
-echo [2/6] Setting up service users and databases...
+echo [2/8] Setting up service users and databases...
 
 for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^POSTGRES_USER' | ForEach-Object { $_ -replace 'POSTGRES_USER=', '' }"`) do set PG_USER=%%i
 
@@ -155,10 +172,23 @@ if errorlevel 1 (
 ) else (
     echo       integrations_db already exists, skipping.
 )
+
+:: analytics_user + activity_db (Mongo)
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^MONGO_ROOT_USER' | ForEach-Object { $_ -replace 'MONGO_ROOT_USER=', '' }"`) do set MONGO_ROOT_USER=%%i
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^MONGO_ROOT_PASSWORD' | ForEach-Object { $_ -replace 'MONGO_ROOT_PASSWORD=', '' }"`) do set MONGO_ROOT_PASSWORD=%%i
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%ANALYTICS_DIR%\.env') | Select-String '^ANALYTICS_DB_PASSWORD' | ForEach-Object { $_ -replace 'ANALYTICS_DB_PASSWORD=', '' }"`) do set ANALYTICS_PASS=%%i
+
+docker exec devboard-mongo mongosh -u %MONGO_ROOT_USER% -p %MONGO_ROOT_PASSWORD% --authenticationDatabase admin --quiet --eval "db.getSiblingDB('activity_db').getUser('analytics_user')" | findstr "null" >nul 2>&1
+if errorlevel 1 (
+    echo       analytics_user already exists, skipping.
+) else (
+    docker exec devboard-mongo mongosh -u %MONGO_ROOT_USER% -p %MONGO_ROOT_PASSWORD% --authenticationDatabase admin --quiet --eval "db.getSiblingDB('activity_db').createUser({user: 'analytics_user', pwd: '%ANALYTICS_PASS%', roles: [{role: 'readWrite', db: 'activity_db'}]})"
+    echo       analytics_user and activity_db created.
+)
 echo.
 
 :: ── Build and start auth ──────────────────────────────────────
-echo [3/7] Building and starting devboard-auth...
+echo [3/8] Building and starting devboard-auth...
 docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -176,7 +206,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start core ──────────────────────────────────────
-echo [4/7] Building and starting devboard-core...
+echo [4/8] Building and starting devboard-core...
 docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -194,7 +224,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start email ─────────────────────────────────────
-echo [5/7] Building and starting devboard-work...
+echo [5/8] Building and starting devboard-work...
 docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -211,7 +241,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [6/7] Building and starting devboard-email...
+echo [6/8] Building and starting devboard-email...
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -222,7 +252,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start integrations ──────────────────────────────
-echo [7/7] Building and starting devboard-integrations...
+echo [7/8] Building and starting devboard-integrations...
 docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -237,8 +267,19 @@ docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" exec devboard-integrat
 if errorlevel 1 (
     echo [WARN] Migrations failed or alembic not available in container.
 )
-
 echo.
+
+:: ── Build and start analytics ─────────────────────────────────
+echo [8/8] Building and starting devboard-analytics...
+docker compose -f "%ANALYTICS_DIR%\docker-compose.yml" up --build -d
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] devboard-analytics compose failed. Check the output above.
+    exit /b 1
+)
+echo.
+
 echo ============================================================
 echo  All services are running.
 echo.
@@ -247,8 +288,10 @@ echo  devboard-email        : http://localhost:8002
 echo  devboard-core         : http://localhost:8003
 echo  devboard-work         : http://localhost:8004
 echo  devboard-integrations : http://localhost:8005
+echo  devboard-analytics    : http://localhost:8006
 echo  PostgreSQL            : localhost:5432
 echo  Redis                 : localhost:6379
+echo  MongoDB               : localhost:27017
 echo.
 echo  To stop everything: stop.bat
 echo ============================================================
