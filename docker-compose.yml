@@ -47,9 +47,31 @@ services:
     networks:
       - devboard-network
 
+  minio:
+    image: minio/minio
+    container_name: devboard-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - devboard_miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - devboard-network
+
 volumes:
   devboard_pgdata:
   devboard_mongodata:
+  devboard_miniodata:
 
 networks:
   devboard-network:

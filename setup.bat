@@ -9,6 +9,7 @@ set CORE_DIR=%ROOT%..\devboard-core
 set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set ANALYTICS_DIR=%ROOT%..\devboard-analytics
+set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
 
 echo.
 echo ============================================================
@@ -59,8 +60,14 @@ if not exist "%ANALYTICS_DIR%\.env" (
     copy "%ANALYTICS_DIR%\.env.example" "%ANALYTICS_DIR%\.env" >nul
 )
 
+if not exist "%ATTACHMENTS_DIR%\.env" (
+    echo [WARN] devboard-attachments\.env not found.
+    echo        Copying from .env.example — fill in the real values before running.
+    copy "%ATTACHMENTS_DIR%\.env.example" "%ATTACHMENTS_DIR%\.env" >nul
+)
+
 :: ── Start DB ─────────────────────────────────────────────────
-echo [1/8] Starting database...
+echo [1/9] Starting database...
 echo       (First run may take a moment)
 echo.
 
@@ -93,7 +100,7 @@ echo       Done.
 echo.
 
 :: ── Create service users and databases ───────────────────────
-echo [2/8] Setting up service users and databases...
+echo [2/9] Setting up service users and databases...
 
 for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^POSTGRES_USER' | ForEach-Object { $_ -replace 'POSTGRES_USER=', '' }"`) do set PG_USER=%%i
 
@@ -173,6 +180,25 @@ if errorlevel 1 (
     echo       integrations_db already exists, skipping.
 )
 
+:: attachments_user + attachments_db
+docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_roles WHERE rolname='attachments_user'" | findstr "1" >nul 2>&1
+if errorlevel 1 (
+    for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%ATTACHMENTS_DIR%\.env') | Select-String '^ATTACHMENTS_DB_PASSWORD' | ForEach-Object { $_ -replace 'ATTACHMENTS_DB_PASSWORD=', '' }"`) do set ATTACHMENTS_PASS=%%i
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER attachments_user WITH PASSWORD '%ATTACHMENTS_PASS%';"
+    echo       attachments_user created.
+) else (
+    echo       attachments_user already exists, skipping.
+)
+
+docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_database WHERE datname='attachments_db'" | findstr "1" >nul 2>&1
+if errorlevel 1 (
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE DATABASE attachments_db OWNER attachments_user;"
+    docker exec devboard-db psql -U %PG_USER% -c "GRANT ALL PRIVILEGES ON DATABASE attachments_db TO attachments_user;"
+    echo       attachments_db created.
+) else (
+    echo       attachments_db already exists, skipping.
+)
+
 :: analytics_user + activity_db (Mongo)
 for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^MONGO_ROOT_USER' | ForEach-Object { $_ -replace 'MONGO_ROOT_USER=', '' }"`) do set MONGO_ROOT_USER=%%i
 for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^MONGO_ROOT_PASSWORD' | ForEach-Object { $_ -replace 'MONGO_ROOT_PASSWORD=', '' }"`) do set MONGO_ROOT_PASSWORD=%%i
@@ -188,7 +214,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start auth ──────────────────────────────────────
-echo [3/8] Building and starting devboard-auth...
+echo [3/9] Building and starting devboard-auth...
 docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -206,7 +232,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start core ──────────────────────────────────────
-echo [4/8] Building and starting devboard-core...
+echo [4/9] Building and starting devboard-core...
 docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -224,7 +250,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start email ─────────────────────────────────────
-echo [5/8] Building and starting devboard-work...
+echo [5/9] Building and starting devboard-work...
 docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -241,7 +267,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [6/8] Building and starting devboard-email...
+echo [6/9] Building and starting devboard-email...
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -252,7 +278,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start integrations ──────────────────────────────
-echo [7/8] Building and starting devboard-integrations...
+echo [7/9] Building and starting devboard-integrations...
 docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -270,13 +296,31 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start analytics ─────────────────────────────────
-echo [8/8] Building and starting devboard-analytics...
+echo [8/9] Building and starting devboard-analytics...
 docker compose -f "%ANALYTICS_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
     echo.
     echo [ERROR] devboard-analytics compose failed. Check the output above.
     exit /b 1
+)
+echo.
+
+:: ── Build and start attachments ───────────────────────────────
+echo [9/9] Building and starting devboard-attachments...
+docker compose -f "%ATTACHMENTS_DIR%\docker-compose.yml" up --build -d
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] devboard-attachments compose failed. Check the output above.
+    exit /b 1
+)
+
+echo       Running alembic migrations...
+docker compose -f "%ATTACHMENTS_DIR%\docker-compose.yml" exec devboard-attachments alembic upgrade head
+
+if errorlevel 1 (
+    echo [WARN] Migrations failed or alembic not available in container.
 )
 echo.
 
@@ -289,9 +333,12 @@ echo  devboard-core         : http://localhost:8003
 echo  devboard-work         : http://localhost:8004
 echo  devboard-integrations : http://localhost:8005
 echo  devboard-analytics    : http://localhost:8006
+echo  devboard-attachments  : http://localhost:8007
 echo  PostgreSQL            : localhost:5432
 echo  Redis                 : localhost:6379
 echo  MongoDB               : localhost:27017
+echo  MinIO API             : localhost:9000
+echo  MinIO Console         : http://localhost:9001
 echo.
 echo  To stop everything: stop.bat
 echo ============================================================
