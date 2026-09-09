@@ -11,6 +11,12 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Consumed by init-db/01-init.sh on first initialisation only.
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
+      CORE_DB_PASSWORD: ${CORE_DB_PASSWORD:-}
+      WORK_DB_PASSWORD: ${WORK_DB_PASSWORD:-}
+      INTEGRATIONS_DB_PASSWORD: ${INTEGRATIONS_DB_PASSWORD:-}
+      ATTACHMENTS_DB_PASSWORD: ${ATTACHMENTS_DB_PASSWORD:-}
     ports:
       - "5432:5432"
     volumes:
