@@ -3,6 +3,10 @@ setlocal EnableDelayedExpansion
 
 set ROOT=%~dp0
 set INFRA_DIR=%ROOT%
+:: Collects services whose migrations failed, so the closing banner can tell the
+:: truth. Previously every migration could fail and the script still printed
+:: "All services are running" and exited 0.
+set FAILED_MIGRATIONS=
 set AUTH_DIR=%ROOT%..\devboard-auth
 set EMAIL_DIR=%ROOT%..\devboard-email
 set CORE_DIR=%ROOT%..\devboard-core
@@ -66,6 +70,16 @@ if not exist "%ATTACHMENTS_DIR%\.env" (
     copy "%ATTACHMENTS_DIR%\.env.example" "%ATTACHMENTS_DIR%\.env" >nul
 )
 
+:: ── Shared network ───────────────────────────────────────────
+:: Every compose file declares devboard-network as external, so something has
+:: to create it. Doing it here keeps the eight files free of a definition that
+:: would conflict when the root compose merges them into one project.
+docker network inspect devboard-network >nul 2>&1
+if errorlevel 1 (
+    echo       Creating devboard-network...
+    docker network create devboard-network >nul
+)
+
 :: ── Start DB ─────────────────────────────────────────────────
 echo [1/9] Starting database...
 echo       (First run may take a moment)
@@ -108,7 +122,7 @@ for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DI
 docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_roles WHERE rolname='auth_user'" | findstr "1" >nul 2>&1
 if errorlevel 1 (
     for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%AUTH_DIR%\.env') | Select-String '^AUTH_DB_PASSWORD' | ForEach-Object { $_ -replace 'AUTH_DB_PASSWORD=', '' }"`) do set AUTH_PASS=%%i
-    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER auth_user WITH PASSWORD '%AUTH_PASS%';"
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER auth_user WITH PASSWORD '!AUTH_PASS!';"
     echo       auth_user created.
 ) else (
     echo       auth_user already exists, skipping.
@@ -127,7 +141,7 @@ if errorlevel 1 (
 docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_roles WHERE rolname='core_user'" | findstr "1" >nul 2>&1
 if errorlevel 1 (
     for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%CORE_DIR%\.env') | Select-String '^DB_PASSWORD' | ForEach-Object { $_ -replace 'DB_PASSWORD=', '' }"`) do set CORE_PASS=%%i
-    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER core_user WITH PASSWORD '%CORE_PASS%';"
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER core_user WITH PASSWORD '!CORE_PASS!';"
     echo       core_user created.
 ) else (
     echo       core_user already exists, skipping.
@@ -146,7 +160,7 @@ if errorlevel 1 (
 docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_roles WHERE rolname='work_user'" | findstr "1" >nul 2>&1
 if errorlevel 1 (
     for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%WORK_DIR%\.env') | Select-String '^DB_PASSWORD' | ForEach-Object { $_ -replace 'DB_PASSWORD=', '' }"`) do set WORK_PASS=%%i
-    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER work_user WITH PASSWORD '%WORK_PASS%';"
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER work_user WITH PASSWORD '!WORK_PASS!';"
     echo       work_user created.
 ) else (
     echo       work_user already exists, skipping.
@@ -165,7 +179,7 @@ if errorlevel 1 (
 docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_roles WHERE rolname='integrations_user'" | findstr "1" >nul 2>&1
 if errorlevel 1 (
     for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INTEGRATIONS_DIR%\.env') | Select-String '^DB_PASSWORD' | ForEach-Object { $_ -replace 'DB_PASSWORD=', '' }"`) do set INTEGRATIONS_PASS=%%i
-    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER integrations_user WITH PASSWORD '%INTEGRATIONS_PASS%';"
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER integrations_user WITH PASSWORD '!INTEGRATIONS_PASS!';"
     echo       integrations_user created.
 ) else (
     echo       integrations_user already exists, skipping.
@@ -184,7 +198,7 @@ if errorlevel 1 (
 docker exec devboard-db psql -U %PG_USER% -tc "SELECT 1 FROM pg_roles WHERE rolname='attachments_user'" | findstr "1" >nul 2>&1
 if errorlevel 1 (
     for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%ATTACHMENTS_DIR%\.env') | Select-String '^ATTACHMENTS_DB_PASSWORD' | ForEach-Object { $_ -replace 'ATTACHMENTS_DB_PASSWORD=', '' }"`) do set ATTACHMENTS_PASS=%%i
-    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER attachments_user WITH PASSWORD '%ATTACHMENTS_PASS%';"
+    docker exec devboard-db psql -U %PG_USER% -c "CREATE USER attachments_user WITH PASSWORD '!ATTACHMENTS_PASS!';"
     echo       attachments_user created.
 ) else (
     echo       attachments_user already exists, skipping.
@@ -228,6 +242,7 @@ docker compose -f "%AUTH_DIR%\docker-compose.yml" exec devboard-auth alembic upg
 
 if errorlevel 1 (
     echo [WARN] Migrations failed or alembic not available in container.
+    set FAILED_MIGRATIONS=!FAILED_MIGRATIONS! devboard-auth
 )
 echo.
 
@@ -246,6 +261,7 @@ docker compose -f "%CORE_DIR%\docker-compose.yml" exec devboard-core python mana
 
 if errorlevel 1 (
     echo [WARN] Django migrations failed.
+    set FAILED_MIGRATIONS=!FAILED_MIGRATIONS! devboard-core
 )
 echo.
 
@@ -264,6 +280,7 @@ docker compose -f "%WORK_DIR%\docker-compose.yml" exec devboard-work python mana
 
 if errorlevel 1 (
     echo [WARN] Django migrations failed.
+    set FAILED_MIGRATIONS=!FAILED_MIGRATIONS! devboard-work
 )
 echo.
 
@@ -292,6 +309,7 @@ docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" exec devboard-integrat
 
 if errorlevel 1 (
     echo [WARN] Migrations failed or alembic not available in container.
+    set FAILED_MIGRATIONS=!FAILED_MIGRATIONS! devboard-integrations
 )
 echo.
 
@@ -321,6 +339,7 @@ docker compose -f "%ATTACHMENTS_DIR%\docker-compose.yml" exec devboard-attachmen
 
 if errorlevel 1 (
     echo [WARN] Migrations failed or alembic not available in container.
+    set FAILED_MIGRATIONS=!FAILED_MIGRATIONS! devboard-attachments
 )
 echo.
 
@@ -343,5 +362,24 @@ echo.
 echo  To stop everything: stop.bat
 echo ============================================================
 echo.
+
+if defined FAILED_MIGRATIONS (
+    echo ############################################################
+    echo  [ERROR] MIGRATIONS FAILED:!FAILED_MIGRATIONS!
+    echo.
+    echo  Those containers are running but their databases are NOT
+    echo  migrated, so the services will error on first request.
+    echo.
+    echo  Scroll up for the traceback. The usual cause is a password
+    echo  mismatch between the service's .env and its Postgres role:
+    echo.
+    echo    docker exec devboard-db psql -U ^<admin^> -c ^"ALTER USER ^<role^> WITH PASSWORD '^<pw^>';^"
+    echo.
+    echo  Then re-run: migrate.bat
+    echo ############################################################
+    echo.
+    endlocal
+    exit /b 1
+)
 
 endlocal

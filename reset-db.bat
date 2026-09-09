@@ -1,122 +1,168 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+:: Wipes every DevBoard database and rebuilds the stack from scratch.
+::
+:: Takes a real backup first: pg_dumpall covers all five Postgres databases AND
+:: their roles in one file, mongodump covers the whole activity log. MinIO
+:: objects are NOT backed up — a database reset orphans their metadata rows, so
+:: the files would be unusable anyway. That is called out in the prompt below.
+::
+:: The service list lives in SERVICES, once. Rebuild delegates to setup.bat
+:: rather than repeating the user/database creation, so this script cannot
+:: drift out of date as services are added.
+
 set ROOT=%~dp0
 set INFRA_DIR=%ROOT%
-set AUTH_DIR=%ROOT%..\devboard-auth
-set EMAIL_DIR=%ROOT%..\devboard-email
-set CORE_DIR=%ROOT%..\devboard-core
-set WORK_DIR=%ROOT%..\devboard-work
-set DUMP_FILE=%ROOT%auth_db_backup.dump
+set SERVICES=auth email core work integrations analytics attachments
 
 echo.
 echo ============================================================
 echo  DevBoard DB Reset
 echo ============================================================
 echo.
-
-:: ── Dump existing data from running container ────────────────
-echo [1/5] Dumping existing database...
-docker exec devboard-db pg_dump -U auth_user -F c -d auth_db -f /auth_db_backup.dump
-
-if errorlevel 1 (
-    echo [WARN] Could not dump from container. Trying local PostgreSQL...
-    pg_dump -U postgres -d auth_db -F c -f "%DUMP_FILE%"
-    if errorlevel 1 (
-        echo [ERROR] Dump failed. Make sure the database is accessible.
-        exit /b 1
-    )
-    set DUMP_SOURCE=local
-) else (
-    docker cp devboard-db:/auth_db_backup.dump "%DUMP_FILE%"
-    set DUMP_SOURCE=container
-)
-echo       Done.
+echo  This DESTROYS all data in:
+echo.
+echo    Postgres  - auth_db, core_db, work_db, integrations_db, attachments_db
+echo    MongoDB   - activity_db (the entire activity log)
+echo    Redis     - the event stream and both consumer-group offsets
+echo    MinIO     - every uploaded file  ^(NOT backed up^)
+echo.
+echo  Postgres and MongoDB are dumped first. MinIO is not.
 echo.
 
-:: ── Tear down all containers and wipe volume ─────────────────
-echo [2/5] Stopping containers and wiping DB volume...
-docker compose -f "%EMAIL_DIR%\docker-compose.yml" down
-docker compose -f "%WORK_DIR%\docker-compose.yml" down
-docker compose -f "%CORE_DIR%\docker-compose.yml" down
-docker compose -f "%AUTH_DIR%\docker-compose.yml" down
+set CONFIRM=
+set /p CONFIRM="Type DESTROY to continue, anything else to abort: "
+if /i not "%CONFIRM%"=="DESTROY" (
+    echo.
+    echo  Aborted. Nothing was changed.
+    echo.
+    exit /b 0
+)
+echo.
+
+:: ── Read credentials ─────────────────────────────────────────
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^POSTGRES_USER' | ForEach-Object { $_ -replace 'POSTGRES_USER=', '' }"`) do set PG_USER=%%i
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^MONGO_ROOT_USER' | ForEach-Object { $_ -replace 'MONGO_ROOT_USER=', '' }"`) do set MONGO_USER=%%i
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^MONGO_ROOT_PASSWORD' | ForEach-Object { $_ -replace 'MONGO_ROOT_PASSWORD=', '' }"`) do set MONGO_PASS=%%i
+
+for /f "usebackq tokens=*" %%i in (`powershell -command "Get-Date -Format yyyy-MM-dd_HHmmss"`) do set STAMP=%%i
+set BACKUP_DIR=%ROOT%backups\%STAMP%
+mkdir "%BACKUP_DIR%" 2>nul
+
+:: ── Back up Postgres (all databases + roles) ─────────────────
+echo [1/5] Backing up Postgres ^(all databases and roles^)...
+set PG_OK=1
+docker exec devboard-db pg_dumpall -U %PG_USER% -f /tmp/devboard_all.sql
+if errorlevel 1 (
+    set PG_OK=0
+) else (
+    docker cp devboard-db:/tmp/devboard_all.sql "%BACKUP_DIR%\postgres_all.sql"
+    if errorlevel 1 set PG_OK=0
+)
+
+if "!PG_OK!"=="0" (
+    echo       [WARN] Postgres backup FAILED - is devboard-db running?
+) else (
+    echo       Saved to %BACKUP_DIR%\postgres_all.sql
+)
+echo.
+
+:: ── Back up Mongo ────────────────────────────────────────────
+echo [2/5] Backing up MongoDB...
+set MONGO_OK=1
+docker exec devboard-mongo mongodump -u %MONGO_USER% -p %MONGO_PASS% --authenticationDatabase admin --archive=/tmp/devboard_mongo.archive --quiet
+if errorlevel 1 (
+    set MONGO_OK=0
+) else (
+    docker cp devboard-mongo:/tmp/devboard_mongo.archive "%BACKUP_DIR%\mongo.archive"
+    if errorlevel 1 set MONGO_OK=0
+)
+
+if "!MONGO_OK!"=="0" (
+    echo       [WARN] Mongo backup FAILED - is devboard-mongo running, and does
+    echo              the image include mongodump?
+) else (
+    echo       Saved to %BACKUP_DIR%\mongo.archive
+)
+echo.
+
+:: ── Second gate if either backup failed ──────────────────────
+if "!PG_OK!"=="0" set BACKUP_FAILED=1
+if "!MONGO_OK!"=="0" set BACKUP_FAILED=1
+
+if defined BACKUP_FAILED (
+    echo  ------------------------------------------------------------
+    echo   At least one backup did not complete. Continuing will destroy
+    echo   that data with no way to get it back.
+    echo  ------------------------------------------------------------
+    echo.
+    set CONFIRM2=
+    set /p CONFIRM2="Type DESTROY again to proceed anyway: "
+    if /i not "!CONFIRM2!"=="DESTROY" (
+        echo.
+        echo  Aborted. Nothing was destroyed. Backups kept in %BACKUP_DIR%
+        echo.
+        exit /b 0
+    )
+    echo.
+)
+
+:: ── Tear down ────────────────────────────────────────────────
+echo [3/5] Stopping services...
+for %%s in (%SERVICES%) do (
+    docker compose -f "%ROOT%..\devboard-%%s\docker-compose.yml" down >nul 2>&1
+    echo       devboard-%%s stopped.
+)
+echo.
+
+echo [4/5] Removing infrastructure volumes...
 docker compose -f "%INFRA_DIR%docker-compose.yml" down -v
 if errorlevel 1 (
-    echo [ERROR] Failed to bring down containers.
+    echo [ERROR] Failed to tear down infrastructure. Backups are in %BACKUP_DIR%
     exit /b 1
 )
-echo       Done.
+echo       Postgres, Mongo, Redis and MinIO volumes removed.
 echo.
 
-:: ── Start fresh DB container ─────────────────────────────────
-echo [3/5] Starting fresh DB container...
-docker compose -f "%INFRA_DIR%docker-compose.yml" up -d
+:: ── Rebuild ──────────────────────────────────────────────────
+:: setup.bat owns the service list, user/database creation and migrations.
+:: Calling it is what stops this script from going stale.
+echo [5/5] Rebuilding the stack via setup.bat...
+echo.
+call "%INFRA_DIR%setup.bat"
+
+:: setup.bat now exits 1 when any migration failed. Don't claim success over it.
 if errorlevel 1 (
-    echo [ERROR] Failed to start DB container.
+    echo.
+    echo ############################################################
+    echo  [ERROR] Reset tore down and rebuilt the stack, but setup.bat
+    echo          reported failures - see above.
+    echo.
+    echo  Your pre-reset backup is intact at:
+    echo    %BACKUP_DIR%
+    echo ############################################################
+    echo.
     exit /b 1
 )
 
-echo       Waiting for DB to be healthy...
-:wait_loop
-docker inspect --format="{{.State.Health.Status}}" devboard-db | findstr "healthy" >nul 2>&1
-if errorlevel 1 (
-    timeout /t 2 >nul
-    goto wait_loop
-)
-echo       Done.
 echo.
-
-:: ── Restore dump ─────────────────────────────────────────────
-echo [4/5] Restoring data...
-docker cp "%DUMP_FILE%" devboard-db:/auth_db_backup.dump
-docker exec devboard-db pg_restore -U auth_user -d auth_db /auth_db_backup.dump
-echo       Done (ownership warnings are normal).
-echo.
-
-:: ── Recreate service users and databases ─────────────────────
-echo       Recreating auth_user, core_user and their databases...
-
-for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^POSTGRES_USER' | ForEach-Object { $_ -replace 'POSTGRES_USER=', '' }"`) do set PG_USER=%%i
-
-for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%AUTH_DIR%\.env') | Select-String '^AUTH_DB_PASSWORD' | ForEach-Object { $_ -replace 'AUTH_DB_PASSWORD=', '' }"`) do set AUTH_PASS=%%i
-docker exec devboard-db psql -U %PG_USER% -c "CREATE USER auth_user WITH PASSWORD '%AUTH_PASS%';" >nul
-docker exec devboard-db psql -U %PG_USER% -c "CREATE DATABASE auth_db OWNER auth_user;" >nul
-docker exec devboard-db psql -U %PG_USER% -c "GRANT ALL PRIVILEGES ON DATABASE auth_db TO auth_user;" >nul
-
-for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%CORE_DIR%\.env') | Select-String '^DB_PASSWORD' | ForEach-Object { $_ -replace 'DB_PASSWORD=', '' }"`) do set CORE_PASS=%%i
-docker exec devboard-db psql -U %PG_USER% -c "CREATE USER core_user WITH PASSWORD '%CORE_PASS%';" >nul
-docker exec devboard-db psql -U %PG_USER% -c "CREATE DATABASE core_db OWNER core_user;" >nul
-docker exec devboard-db psql -U %PG_USER% -c "GRANT ALL PRIVILEGES ON DATABASE core_db TO core_user;" >nul
-
-for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%WORK_DIR%\.env') | Select-String '^DB_PASSWORD' | ForEach-Object { $_ -replace 'DB_PASSWORD=', '' }"`) do set WORK_PASS=%%i
-docker exec devboard-db psql -U %PG_USER% -c "CREATE USER work_user WITH PASSWORD '%WORK_PASS%';" >nul
-docker exec devboard-db psql -U %PG_USER% -c "CREATE DATABASE work_db OWNER work_user;" >nul
-docker exec devboard-db psql -U %PG_USER% -c "GRANT ALL PRIVILEGES ON DATABASE work_db TO work_user;" >nul
-
-echo       Done.
-echo.
-
-:: ── Start remaining services ─────────────────────────────────
-echo [5/5] Starting all services...
-docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d
-docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
-docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
-docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
-if errorlevel 1 (
-    echo [ERROR] Failed to start services.
-    exit /b 1
-)
-echo       Done.
-echo.
-
 echo ============================================================
-echo  DB reset complete.
+echo  Reset complete. Databases are empty and migrated.
 echo.
-echo  devboard-auth   ->  http://localhost:8001
-echo  devboard-email  ->  http://localhost:8002
-echo  devboard-core   ->  http://localhost:8003
-echo  devboard-work   ->  http://localhost:8004
-echo  PostgreSQL      ->  localhost:5432
+echo  Backup: %BACKUP_DIR%
+echo.
+echo  To restore Postgres into the fresh stack:
+echo    docker cp "%BACKUP_DIR%\postgres_all.sql" devboard-db:/tmp/restore.sql
+echo    docker exec devboard-db psql -U %PG_USER% -f /tmp/restore.sql
+echo.
+echo  To restore MongoDB:
+echo    docker cp "%BACKUP_DIR%\mongo.archive" devboard-mongo:/tmp/restore.archive
+echo    docker exec devboard-mongo mongorestore --archive=/tmp/restore.archive ^
+echo      -u %MONGO_USER% -p ^<password^> --authenticationDatabase admin --drop
+echo.
+echo  Restore over a migrated database, not alongside it - pg_dumpall recreates
+echo  roles and tables, so expect "already exists" errors on the role lines.
 echo ============================================================
 echo.
 

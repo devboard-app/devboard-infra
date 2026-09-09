@@ -1,0 +1,50 @@
+# DevBoard — one entry point for the whole stack.
+#
+# Run from the DevBoard root (the directory holding all eight repos):
+#
+#   docker network create devboard-network                  # once, first run only
+#   docker compose -f devboard-infra/stack.yml up -d --build
+#   docker compose -f devboard-infra/stack.yml ps           # all 14, one project
+#   docker compose -f devboard-infra/stack.yml logs -f devboard-work
+#   docker compose -f devboard-infra/stack.yml down         # stops all, keeps volumes
+#
+# Sibling repos are referenced by directory name, so all eight must be cloned
+# side by side under one parent — the same assumption the .bat scripts here
+# already make. This file aggregates; docker-compose.yml next to it is
+# infra-only (Postgres, Redis, Mongo, MinIO).
+#
+# Every service keeps its own compose file and stays runnable on its own
+# (`cd devboard-work && docker compose up -d` still works).
+#
+# Why `include:` and not `-f a.yml -f b.yml ...`:
+# `-f` merges files but resolves every relative path against the FIRST file's
+# directory, so each service's `build: context: .` and `env_file: .env` would
+# point at C:\DevBoard instead of its own repo. `include` gives each file its
+# own directory as the base, which is exactly what we need here.
+#
+# Note: `include` does NOT create depends_on across files. Everything starts at
+# once and the app containers restart until Postgres passes its healthcheck.
+# `restart: unless-stopped` makes that self-correcting — noisy logs, right
+# outcome. Adding depends_on here would break standalone `up` in each repo,
+# where devboard-db is not defined.
+
+name: devboard
+
+include:
+  # Long syntax for infra only. Its file uses ${POSTGRES_USER} and friends, and
+  # `${}` interpolation reads the ROOT project's environment, not the included
+  # file's directory — without this those variables resolve to empty and
+  # Postgres starts with no user.
+  - path: ./docker-compose.yml
+    env_file: ./.env
+
+  # The service files use `env_file:` on the service itself. That is runtime
+  # environment, resolved relative to each repo, not parse-time interpolation —
+  # so bare paths are enough here.
+  - ../devboard-auth/docker-compose.yml
+  - ../devboard-email/docker-compose.yml
+  - ../devboard-core/docker-compose.yml
+  - ../devboard-work/docker-compose.yml
+  - ../devboard-integrations/docker-compose.yml
+  - ../devboard-analytics/docker-compose.yml
+  - ../devboard-attachments/docker-compose.yml
