@@ -1,11 +1,15 @@
--- Run automatically on first postgres container init.
--- If the container already has data (volume exists), run this manually via pgcli.
-
-CREATE USER core_user WITH PASSWORD 'your_core_password';
-CREATE DATABASE core_db OWNER core_user;
-
-CREATE USER work_user WITH PASSWORD 'your_work_password';
-CREATE DATABASE work_db OWNER work_user;
-
-CREATE USER attachments_user WITH PASSWORD 'your_attachments_password';
-CREATE DATABASE attachments_db OWNER attachments_user;
+-- Intentionally empty.
+--
+-- This file used to CREATE USER / CREATE DATABASE for core, work and
+-- attachments with placeholder passwords hardcoded in the SQL. That made it a
+-- second, disagreeing source of truth alongside setup.bat:
+--
+--   * it knew about 3 of the 5 Postgres services (no auth_user, no
+--     integrations_user), so a fresh volume came up half-provisioned;
+--   * the passwords were the literal .env.example placeholders, while setup.bat
+--     reads the real ones from each service's .env;
+--   * setup.bat skips any role that already exists, so the placeholders it
+--     created were never corrected. Every service then failed to authenticate.
+--
+-- setup.bat now owns database bootstrap outright. Leave this file empty (rather
+-- than deleting it) so the ./init-db mount in docker-compose.yml stays valid.

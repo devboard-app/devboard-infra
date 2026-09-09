@@ -10,7 +10,7 @@ set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
-set DUMP_FILE=%ROOT%auth_db_backup.dump
+set DUMP_FILE=%ROOT%backups\devboard_all.sql
 
 echo.
 echo ============================================================
@@ -18,15 +18,23 @@ echo  DevBoard Stop
 echo ============================================================
 echo.
 
-:: ── Dump database before stopping ────────────────────────────
-echo [1/2] Backing up database...
-docker exec devboard-db pg_dump -U auth_user -F c -d auth_db -f /auth_db_backup.dump
+:: ── Dump databases before stopping ───────────────────────────
+:: pg_dumpall, not pg_dump -d auth_db: the old version claimed to have taken a
+:: backup while covering one of five databases. `down` below keeps the volumes,
+:: so this is belt-and-braces either way — but the message it prints is now true.
+echo [1/2] Backing up Postgres...
+
+mkdir "%ROOT%backups" 2>nul
+
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^POSTGRES_USER' | ForEach-Object { $_ -replace 'POSTGRES_USER=', '' }"`) do set PG_USER=%%i
+
+docker exec devboard-db pg_dumpall -U %PG_USER% -f /tmp/devboard_all.sql
 
 if errorlevel 1 (
-    echo [WARN] Database backup failed — container may not be running.
+    echo [WARN] Backup failed — container may not be running.
 ) else (
-    docker cp devboard-db:/auth_db_backup.dump "%DUMP_FILE%"
-    echo       Backup saved to %DUMP_FILE%
+    docker cp devboard-db:/tmp/devboard_all.sql "%DUMP_FILE%"
+    echo       All databases and roles saved to %DUMP_FILE%
 )
 echo.
 

@@ -1,3 +1,8 @@
+# Pinned so this file and the root compose file resolve to the SAME project.
+# Every service sets an explicit container_name, which is global rather than
+# project-scoped, so two projects can never hold the same service at once.
+name: devboard
+
 services:
   db:
     image: postgres:18-alpine
@@ -23,8 +28,19 @@ services:
     image: redis:7-alpine
     container_name: devboard-redis
     restart: unless-stopped
+    # Redis is the event bus. Without AOF the stream and the consumer-group
+    # offsets are lost on restart, so analytics and integrations silently skip
+    # whatever was in flight.
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
+    volumes:
+      - devboard_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     networks:
       - devboard-network
 
@@ -68,12 +84,26 @@ services:
     networks:
       - devboard-network
 
+# Explicit names, for the same reason the network is external: this file is
+# started both on its own (project "devboard-infra") and via the root compose
+# file (project "devboard"). Without a fixed name Compose prefixes the project,
+# so the two entry points would silently use two different sets of volumes and
+# the data would look like it had vanished.
 volumes:
   devboard_pgdata:
+    name: devboard_pgdata
   devboard_mongodata:
+    name: devboard_mongodata
   devboard_miniodata:
+    name: devboard_miniodata
+  devboard_redisdata:
+    name: devboard_redisdata
 
+# External here as well as in every service file, so all eight can be merged
+# into one project by the root compose file without contradicting each other
+# (a definition says "create it", external says "don't"). Created once with:
+#   docker network create devboard-network
 networks:
   devboard-network:
     name: devboard-network
-    driver: bridge
+    external: true
