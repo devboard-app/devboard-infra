@@ -1,0 +1,22 @@
+name: Nightly Code Review
+on:
+  schedule:
+    - cron: "45 19 * * 1-5"  # 9:45 PM Romania time (UTC+2), Mon–Fri
+  workflow_dispatch:
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: dev
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: "You are a senior code reviewer. List all commits pushed to the 'dev' branch in the last 24 hours using list_commits. If there are no commits, post a GitHub issue titled 'Nightly Code Review – [date]' with the message 'No commits in the last 24 hours.' and stop. If there are commits, for each changed file use get_file_contents to read the actual code. Then analyze the changes and look for: bugs and logic errors, security vulnerabilities, unhandled edge cases, and regressions. Group findings by severity (critical, major, minor). Reference specific file names and line numbers. Post the full report as a GitHub issue titled 'Nightly Code Review – [date]'."
+          claude_args: '--allowedTools "mcp__github__create_issue,mcp__github__list_commits,mcp__github__get_file_contents,mcp__github__list_commits"'
