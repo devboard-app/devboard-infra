@@ -1,22 +1,21 @@
 name: Nightly Code Review
 on:
   schedule:
-    - cron: "45 19 * * 1-5"  # 9:45 PM Romania time (UTC+2), Mon–Fri
+    - cron: "45 19 * * 1-5"  # 10:45 PM Romania time (UTC+3, EEST); 9:45 PM after DST ends late Oct
   workflow_dispatch:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
-      id-token: write
       issues: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.1
         with:
-          fetch-depth: 0
           ref: dev
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@bf38e86e58df9ebf3420326d019f955bb3be64dd # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: "You are a senior code reviewer. List all commits pushed to the 'dev' branch in the last 24 hours using list_commits. If there are no commits, post a GitHub issue titled 'Nightly Code Review – [date]' with the message 'No commits in the last 24 hours.' and stop. If there are commits, for each changed file use get_file_contents to read the actual code. Then analyze the changes and look for: bugs and logic errors, security vulnerabilities, unhandled edge cases, and regressions. Group findings by severity (critical, major, minor). Reference specific file names and line numbers. Post the full report as a GitHub issue titled 'Nightly Code Review – [date]'."
-          claude_args: '--allowedTools "mcp__github__create_issue,mcp__github__list_commits,mcp__github__get_file_contents,mcp__github__list_commits"'
+          prompt: "You are a senior code reviewer. List all commits pushed to the 'dev' branch in the last 24 hours using list_commits. If there are no commits, post a GitHub issue titled 'Nightly Code Review – [date]' with the message 'No commits in the last 24 hours.' and stop. If there are commits, for each changed file use get_file_contents to read the actual code. Then analyze the changes and look for: bugs and logic errors, security vulnerabilities, unhandled edge cases, and regressions. Only report issues that are real, concrete problems with a specific failure scenario — skip stylistic nitpicks, speculative edge cases that cannot actually occur given how the code is used, and suggestions to add abstraction, validation, or defensive handling beyond what the change actually needs. Group findings by severity (critical, major, minor), and do not inflate severity to justify a finding. Reference specific file names and line numbers. Post the full report as a GitHub issue titled 'Nightly Code Review – [date]'."
+          claude_args: '--allowedTools "mcp__github__create_issue,mcp__github__list_commits,mcp__github__get_file_contents"'
