@@ -14,7 +14,7 @@ setlocal EnableDelayedExpansion
 
 set ROOT=%~dp0
 set INFRA_DIR=%ROOT%
-set SERVICES=auth email core work integrations analytics attachments
+set SERVICES=auth email core work integrations analytics attachments web
 
 echo.
 echo ============================================================
@@ -25,7 +25,7 @@ echo  This DESTROYS all data in:
 echo.
 echo    Postgres  - auth_db, core_db, work_db, integrations_db, attachments_db
 echo    MongoDB   - activity_db (the entire activity log)
-echo    Redis     - the event stream and both consumer-group offsets
+echo    Redis     - the event stream, both consumer-group offsets, and devboard-web's login sessions
 echo    MinIO     - every uploaded file  ^(NOT backed up^)
 echo.
 echo  Postgres and MongoDB are dumped first. MinIO is not.

@@ -10,6 +10,7 @@ set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
+set WEB_DIR=%ROOT%..\devboard-web
 set DUMP_FILE=%ROOT%backups\devboard_all.sql
 
 echo.
@@ -40,6 +41,7 @@ echo.
 
 :: ── Stop all containers ───────────────────────────────────────
 echo [2/2] Stopping all containers...
+docker compose -f "%WEB_DIR%\docker-compose.yml" down
 docker compose -f "%ATTACHMENTS_DIR%\docker-compose.yml" down
 docker compose -f "%ANALYTICS_DIR%\docker-compose.yml" down
 docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" down

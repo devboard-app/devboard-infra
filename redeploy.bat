@@ -9,6 +9,7 @@ set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
+set WEB_DIR=%ROOT%..\devboard-web
 
 set SUMMARY_FILE=%TEMP%\devboard_redeploy_summary.txt
 if exist "%SUMMARY_FILE%" del "%SUMMARY_FILE%"
@@ -26,6 +27,7 @@ echo  4 - devboard-work
 echo  5 - devboard-integrations
 echo  6 - devboard-analytics
 echo  7 - devboard-attachments
+echo  8 - devboard-web
 echo.
 set /p CHOICE="Select service to redeploy: "
 
@@ -37,6 +39,7 @@ if "%CHOICE%"=="4" goto WORK
 if "%CHOICE%"=="5" goto INTEGRATIONS
 if "%CHOICE%"=="6" goto ANALYTICS
 if "%CHOICE%"=="7" goto ATTACHMENTS
+if "%CHOICE%"=="8" goto WEB
 
 echo Invalid choice.
 exit /b 1
@@ -49,6 +52,7 @@ call :RUN_WORK
 call :RUN_INTEGRATIONS
 call :RUN_ANALYTICS
 call :RUN_ATTACHMENTS
+call :RUN_WEB
 goto DONE
 
 :AUTH
@@ -77,6 +81,10 @@ goto DONE
 
 :ATTACHMENTS
 call :RUN_ATTACHMENTS
+goto DONE
+
+:WEB
+call :RUN_WEB
 goto DONE
 
 :RUN_AUTH
@@ -146,6 +154,16 @@ if errorlevel 1 (
     echo   [FAILED] devboard-attachments  ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
     echo   [OK]     devboard-attachments  ->  http://localhost:8007 >> "%SUMMARY_FILE%"
+)
+exit /b 0
+
+:RUN_WEB
+echo Redeploying devboard-web...
+docker compose -f "%WEB_DIR%\docker-compose.yml" up --build -d
+if errorlevel 1 (
+    echo   [FAILED] devboard-web          ->  check docker logs >> "%SUMMARY_FILE%"
+) else (
+    echo   [OK]     devboard-web          ->  http://localhost:8008 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 
