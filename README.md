@@ -46,6 +46,8 @@ Shared parts (started by this folder's `docker-compose.yml`):
 | `devboard-mongo` (MongoDB 7) | 27017 | `activity_db`, the activity log. |
 | `devboard-minio` | 9000 API, 9001 console | Uploaded files. |
 
+All four ports are published to `127.0.0.1` only — reachable from this machine, not from the rest of the network.
+
 One Postgres container, five databases. Each service has its own user and database:
 
 | Service | Database | User |
@@ -132,14 +134,14 @@ Then run `migrate.bat`.
 | What | Where | Notes |
 |---|---|---|
 | Postgres, on `stop.bat` | `backups\devboard_all.sql` | All five databases and roles (`pg_dumpall`). |
-| Everything, on `reset-db.bat` | `backups\<timestamp>\` | Postgres (`postgres_all.sql`) and MongoDB (`mongo.archive`). |
+| Everything, on `reset-db.bat` | `backups\<timestamp>\` | Postgres (`postgres_all.sql`), MongoDB (`mongo.archive`), and the MinIO bucket (`minio_bucket\`). |
 
 **`reset-db.bat` deletes:**
 
 1. All five Postgres databases.
 2. The MongoDB activity log.
 3. Redis: the event stream, consumer offsets, and web login sessions.
-4. **Every uploaded file in MinIO. MinIO is not backed up.**
+4. Every uploaded file in MinIO — backed up first, same as Postgres and MongoDB. Restore Postgres and the MinIO bucket together: `attachments_db` rows point at files by key, so restoring only one side leaves broken links.
 
 It asks you to type `DESTROY` to continue. If a backup fails, it asks again.
 
