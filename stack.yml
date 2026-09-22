@@ -4,9 +4,18 @@
 #
 #   docker network create devboard-network                  # once, first run only
 #   docker compose -f devboard-infra/stack.yml up -d --build
+#   devboard-infra\migrate.bat                               # then this — databases start empty
 #   docker compose -f devboard-infra/stack.yml ps           # all 14, one project
 #   docker compose -f devboard-infra/stack.yml logs -f devboard-work
 #   docker compose -f devboard-infra/stack.yml down         # stops all, keeps volumes
+#
+# Migrations are NOT run automatically here. A migrate-before-app-starts step
+# was tried and reverted: services start with `include:` (see below), which
+# gives no cross-file depends_on, so a service can start before Postgres is
+# ready — coupling migration into the startup command made the whole
+# container fail in that case instead of just the migration step. migrate.bat
+# runs migrations against already-started containers instead, same as
+# setup.bat already does for a first-time clone.
 #
 # Sibling repos are referenced by directory name, so all eight must be cloned
 # side by side under one parent — the same assumption the .bat scripts here
