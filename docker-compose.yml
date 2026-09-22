@@ -18,7 +18,7 @@ services:
       INTEGRATIONS_DB_PASSWORD: ${INTEGRATIONS_DB_PASSWORD:-}
       ATTACHMENTS_DB_PASSWORD: ${ATTACHMENTS_DB_PASSWORD:-}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - devboard_pgdata:/var/lib/postgresql
       - ./init-db:/docker-entrypoint-initdb.d
@@ -39,7 +39,7 @@ services:
     # whatever was in flight.
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - devboard_redisdata:/data
     healthcheck:
@@ -58,7 +58,7 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - devboard_mongodata:/data/db
     healthcheck:
@@ -78,8 +78,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # web console
+      - "127.0.0.1:9000:9000"   # S3 API
+      - "127.0.0.1:9001:9001"   # web console
     volumes:
       - devboard_miniodata:/data
     healthcheck:
