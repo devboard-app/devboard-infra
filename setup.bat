@@ -14,7 +14,7 @@ set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
-set WEB_DIR=%ROOT%..\devboard-web
+set WEB_DIR=%ROOT%..\devboard-web2
 
 echo.
 echo ============================================================
@@ -69,12 +69,6 @@ if not exist "%ATTACHMENTS_DIR%\.env" (
     echo [WARN] devboard-attachments\.env not found.
     echo        Copying from .env.example — fill in the real values before running.
     copy "%ATTACHMENTS_DIR%\.env.example" "%ATTACHMENTS_DIR%\.env" >nul
-)
-
-if not exist "%WEB_DIR%\.env" (
-    echo [WARN] devboard-web\.env not found.
-    echo        Copying from .env.example — fill in the real values before running.
-    copy "%WEB_DIR%\.env.example" "%WEB_DIR%\.env" >nul
 )
 
 :: ── Shared network ───────────────────────────────────────────
@@ -351,13 +345,15 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start web ────────────────────────────────────────
-:: No migrations here — devboard-web has no database of its own.
-echo [10/10] Building and starting devboard-web...
+:: No migrations and no .env here — devboard-web2 is the React frontend, with
+:: no database of its own. It runs the Vite dev server, whose proxy forwards
+:: API calls to the services above.
+echo [10/10] Building and starting devboard-web2...
 docker compose -f "%WEB_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
     echo.
-    echo [ERROR] devboard-web compose failed. Check the output above.
+    echo [ERROR] devboard-web2 compose failed. Check the output above.
     exit /b 1
 )
 echo.
@@ -372,7 +368,7 @@ echo  devboard-work         : http://localhost:8004
 echo  devboard-integrations : http://localhost:8005
 echo  devboard-analytics    : http://localhost:8006
 echo  devboard-attachments  : http://localhost:8007
-echo  devboard-web          : http://localhost:8008
+echo  devboard-web2 (app)   : http://localhost:8443
 echo  PostgreSQL            : localhost:5432
 echo  Redis                 : localhost:6379
 echo  MongoDB               : localhost:27017

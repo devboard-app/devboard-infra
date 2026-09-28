@@ -10,7 +10,7 @@ set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
-set WEB_DIR=%ROOT%..\devboard-web
+set WEB_DIR=%ROOT%..\devboard-web2
 set DUMP_FILE=%ROOT%backups\devboard_all.sql
 
 echo.

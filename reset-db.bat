@@ -28,7 +28,7 @@ echo  This DESTROYS all data in:
 echo.
 echo    Postgres  - auth_db, core_db, work_db, integrations_db, attachments_db
 echo    MongoDB   - activity_db (the entire activity log)
-echo    Redis     - the event stream, both consumer-group offsets, and devboard-web's login sessions
+echo    Redis     - the event stream, and both consumer-group offsets
 echo    MinIO     - every uploaded file
 echo.
 echo  Postgres, MongoDB and the MinIO bucket are backed up first.

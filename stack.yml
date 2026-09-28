@@ -57,4 +57,4 @@ include:
   - ../devboard-integrations/docker-compose.yml
   - ../devboard-analytics/docker-compose.yml
   - ../devboard-attachments/docker-compose.yml
-  - ../devboard-web/docker-compose.yml
+  - ../devboard-web2/docker-compose.yml

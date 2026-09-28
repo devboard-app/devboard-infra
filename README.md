@@ -18,7 +18,7 @@ setup.bat
 ```
 
 3. Wait for the closing banner. It lists every service and its port.
-4. Open `http://localhost:8008` (the web app).
+4. Open `http://localhost:8443` (the web app).
 
 `setup.bat` also copies `.env.example` to `.env` in any repo that has no `.env` yet. **Then fill them in** and run `setup.bat` again.
 
@@ -35,7 +35,7 @@ setup.bat
 | devboard-integrations | 8005 | Slack, Discord, GitHub, notifications. Plus a worker container. |
 | devboard-analytics | 8006 | Activity log and reports. Plus a worker container. |
 | devboard-attachments | 8007 | File uploads. |
-| devboard-web | 8008 | The web app. |
+| devboard-web2 | 8443 | The web app (React). Runs the Vite dev server; its proxy forwards API calls to the services above. |
 
 Shared parts (started by this folder's `docker-compose.yml`):
 
