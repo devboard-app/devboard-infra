@@ -6,7 +6,31 @@ There is no app code here. Only Docker files and `.bat` scripts (Windows).
 
 ---
 
-## Start here (about 10 minutes the first time)
+## New machine: one command (about 10 minutes)
+
+You need Git and Docker Desktop (running).
+
+```bat
+mkdir C:\DevBoard
+cd C:\DevBoard
+git clone -b dev https://github.com/devboard-app/devboard-infra.git
+devboard-infra\bootstrap.bat
+```
+
+It does everything:
+
+1. Clones every other repo next to `devboard-infra`, each at its working branch. The branches are listed at the top of `bootstrap.ps1`.
+2. Creates each `.env` from its `.env.example`.
+3. Generates every password and secret, and writes the same value everywhere it has to match (DB passwords, `JWT_SECRET`, `INTERNAL_API_KEY`).
+4. Starts the stack with `stack.yml`, migrations included.
+
+At the end it lists what it can't fill in for you: SMTP login, `GEMINI_API_KEY`, `GITHUB_WEBHOOK_SECRET`. Add those, then run `redeploy.bat` for that service.
+
+Safe to re-run: it never overwrites a value that is already set. Use `bootstrap.bat -NoStart` to clone and configure without starting anything.
+
+---
+
+## Start here, the manual way (about 10 minutes the first time)
 
 **Before you begin:** all repos must sit side by side in one folder (`devboard-auth`, `devboard-core`, ...). The scripts use `..\devboard-*` paths. Docker Desktop must be running.
 
@@ -68,6 +92,7 @@ Run them from this folder.
 
 | Script | What it does | When to use it |
 |---|---|---|
+| `bootstrap.bat` | Clones all repos, writes every `.env` with matching secrets, starts everything. | Once, on a new machine. |
 | `setup.bat` | Starts infra, creates users and databases, builds and starts every service, runs migrations. | First run. Or after a reset. |
 | `redeploy.bat` | Menu. Rebuilds and restarts one service (`1` to `8`) or all (`0`). | After you change code. |
 | `migrate.bat` | Menu. Runs migrations: `0` all, `1` auth, `2` core, `3` work, `4` integrations, `5` attachments. | After you change a model. |
