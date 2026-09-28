@@ -100,9 +100,8 @@ Create the network only the first time.
 Good to know:
 
 - Everything starts at once. App containers may restart a few times until Postgres is healthy. That is normal.
-- `stack.yml` **does not run migrations.** Run `migrate.bat` after.
-- Postgres roles and databases are created by `init-db\01-init.sh`. It runs only when the Postgres volume is **empty**.
-- The MongoDB `analytics_user` is created only by `setup.bat`.
+- `stack.yml` **runs migrations for you.** The `migrate-*` containers wait for Postgres, migrate, and exit. `docker compose -f devboard-infra/stack.yml ps -a` shows them as `Exited (0)` when they succeeded. Services may error for the first few seconds, until they finish.
+- Postgres roles and databases are created by `init-db\01-init.sh`. The MongoDB `analytics_user` is created by `init-mongo\01-analytics-user.js`. Both run only when their volume is **empty**.
 
 ---
 
@@ -116,6 +115,7 @@ Good to know:
 | `MONGO_ROOT_USER` `MONGO_ROOT_PASSWORD` | MongoDB admin login. |
 | `MINIO_ROOT_USER` `MINIO_ROOT_PASSWORD` | MinIO admin login. |
 | `AUTH_DB_PASSWORD` `CORE_DB_PASSWORD` `WORK_DB_PASSWORD` `INTEGRATIONS_DB_PASSWORD` `ATTACHMENTS_DB_PASSWORD` | Passwords for the five service users. Used by `init-db` on a fresh volume. |
+| `ANALYTICS_DB_PASSWORD` | Password for the MongoDB `analytics_user`. Must match the password inside `MONGO_URI` in `devboard-analytics\.env`. Used by `init-mongo` on a fresh volume, and by `setup.bat`. |
 
 **Each service password must match the password in that service's own `.env`.** A mismatch is the most common reason a migration fails.
 

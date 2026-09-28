@@ -217,7 +217,9 @@ if errorlevel 1 (
 :: analytics_user + activity_db (Mongo)
 for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^MONGO_ROOT_USER' | ForEach-Object { $_ -replace 'MONGO_ROOT_USER=', '' }"`) do set MONGO_ROOT_USER=%%i
 for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^MONGO_ROOT_PASSWORD' | ForEach-Object { $_ -replace 'MONGO_ROOT_PASSWORD=', '' }"`) do set MONGO_ROOT_PASSWORD=%%i
-for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%ANALYTICS_DIR%\.env') | Select-String '^ANALYTICS_DB_PASSWORD' | ForEach-Object { $_ -replace 'ANALYTICS_DB_PASSWORD=', '' }"`) do set ANALYTICS_PASS=%%i
+:: From devboard-infra\.env, not devboard-analytics\.env: analytics only has the
+:: password inside MONGO_URI, so reading it there gave an empty password.
+for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^ANALYTICS_DB_PASSWORD' | ForEach-Object { $_ -replace 'ANALYTICS_DB_PASSWORD=', '' }"`) do set ANALYTICS_PASS=%%i
 
 docker exec devboard-mongo mongosh -u %MONGO_ROOT_USER% -p %MONGO_ROOT_PASSWORD% --authenticationDatabase admin --quiet --eval "db.getSiblingDB('activity_db').getUser('analytics_user')" | findstr "null" >nul 2>&1
 if errorlevel 1 (

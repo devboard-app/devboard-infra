@@ -4,18 +4,19 @@
 #
 #   docker network create devboard-network                  # once, first run only
 #   docker compose -f devboard-infra/stack.yml up -d --build
-#   devboard-infra\migrate.bat                               # then this — databases start empty
-#   docker compose -f devboard-infra/stack.yml ps           # all 14, one project
+#   docker compose -f devboard-infra/stack.yml ps -a        # migrate-* show "Exited (0)" when done
 #   docker compose -f devboard-infra/stack.yml logs -f devboard-work
 #   docker compose -f devboard-infra/stack.yml down         # stops all, keeps volumes
 #
-# Migrations are NOT run automatically here. A migrate-before-app-starts step
-# was tried and reverted: services start with `include:` (see below), which
-# gives no cross-file depends_on, so a service can start before Postgres is
-# ready — coupling migration into the startup command made the whole
-# container fail in that case instead of just the migration step. migrate.bat
-# runs migrations against already-started containers instead, same as
-# setup.bat already does for a first-time clone.
+# Migrations run automatically, as the one-shot migrate-* jobs at the bottom of
+# this file. They wait for Postgres to be healthy, migrate, and exit. They
+# live here and not in each service's compose file because depends_on on
+# devboard-db would break standalone `up` in each repo (see the note below).
+# The app containers don't wait for them, so for the first few seconds of a
+# fresh install they can error on requests — that clears once the jobs exit.
+# (A migrate step inside each app's startup command was tried before and
+# reverted: it made the whole app container fail whenever Postgres was slow.)
+# migrate.bat still works for re-running migrations after a model change.
 #
 # Sibling repos are referenced by directory name, so all eight must be cloned
 # side by side under one parent — the same assumption the .bat scripts here
@@ -58,3 +59,78 @@ include:
   - ../devboard-analytics/docker-compose.yml
   - ../devboard-attachments/docker-compose.yml
   - ../devboard-web2/docker-compose.yml
+
+# ── Migrations ────────────────────────────────────────────────
+# One-shot jobs, one per service with a Postgres database. Each builds from the
+# same repo as its app (so it reuses the app's cached image layers), reads the
+# same .env, and runs the same command migrate.bat does. They exit when done;
+# `restart: on-failure:3` only covers a transient connection failure.
+#
+# depends_on works here because `include` merges devboard-infra's own
+# docker-compose.yml into this project, so `db` is a known service.
+services:
+  migrate-auth:
+    build: ../devboard-auth
+    env_file: ../devboard-auth/.env
+    command: alembic upgrade head
+    restart: on-failure:3
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - devboard-network
+
+  migrate-core:
+    build: ../devboard-core
+    env_file: ../devboard-core/.env
+    environment:
+      DB_HOST: devboard-db
+      DB_PORT: 5432
+    command: python manage.py migrate
+    restart: on-failure:3
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - devboard-network
+
+  migrate-work:
+    build: ../devboard-work
+    env_file: ../devboard-work/.env
+    environment:
+      DB_HOST: devboard-db
+      DB_PORT: 5432
+      REDIS_URL: redis://devboard-redis:6379/0
+    command: python manage.py migrate
+    restart: on-failure:3
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - devboard-network
+
+  migrate-integrations:
+    build: ../devboard-integrations
+    env_file: ../devboard-integrations/.env
+    environment:
+      DB_HOST: devboard-db
+      DB_PORT: 5432
+      REDIS_HOST: devboard-redis
+    command: alembic upgrade head
+    restart: on-failure:3
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - devboard-network
+
+  migrate-attachments:
+    build: ../devboard-attachments
+    env_file: ../devboard-attachments/.env
+    command: alembic upgrade head
+    restart: on-failure:3
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - devboard-network

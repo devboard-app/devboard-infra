@@ -23,7 +23,11 @@ services:
       - devboard_pgdata:/var/lib/postgresql
       - ./init-db:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      # -h 127.0.0.1, not the default socket: while init-db runs, Postgres is a
+      # temporary socket-only server, and a socket check would report healthy
+      # before the service roles exist — the migrate-* jobs in stack.yml would
+      # then start against a database with no users.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -57,10 +61,13 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      # Consumed by init-mongo/01-analytics-user.js on first initialisation only.
+      ANALYTICS_DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:-}
     ports:
       - "127.0.0.1:27017:27017"
     volumes:
       - devboard_mongodata:/data/db
+      - ./init-mongo:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 5s
