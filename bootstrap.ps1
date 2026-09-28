@@ -8,14 +8,18 @@
      must match across repos (DB passwords, JWT_SECRET, INTERNAL_API_KEY)
      do match. A value that is already real is never overwritten, so this
      is safe to re-run on a machine that is already set up.
-  5. Starts the whole stack with stack.yml (migrations included).
+  5. Asks for the settings only you have (SMTP login, Gemini key, GitHub
+     webhook secret) and writes them into the right .env. Enter skips one.
+  6. Starts the whole stack with stack.yml (migrations included).
 
   Keep this file ASCII-only: Windows PowerShell 5.1 reads a BOM-less file as
   ANSI, so any non-ASCII character would be mangled.
 #>
 param(
-    # Skip step 5 (clone and configure only).
-    [switch]$NoStart
+    # Skip step 6 (clone and configure only).
+    [switch]$NoStart,
+    # Skip step 5 (don't ask for anything; leave those values for later).
+    [switch]$NoPrompt
 )
 
 $InfraDir = $PSScriptRoot
@@ -61,11 +65,30 @@ $EmptyAllowed = @('TRUSTED_PROXY_IPS')
 
 $FrontendUrl = 'http://localhost:8443'
 
+# Settings no one can generate for you, asked for in step 5. Asked only while
+# the value is still a placeholder. Skipping a group's first field skips the
+# whole group.
+$AccountSettings = @(
+    @{ Service = 'devboard-email'; Title = 'Email (SMTP) - sends verification and password-reset emails'
+       Fields = @(
+           @{ Key = 'SMTP_HOST'; Label = 'SMTP host, e.g. smtp.gmail.com' }
+           # The email service always uses STARTTLS, which is port 587.
+           @{ Key = 'SMTP_PORT'; Label = 'SMTP port'; Default = '587'; Pattern = '^\d+$' }
+           @{ Key = 'SMTP_USER'; Label = 'SMTP username' }
+           @{ Key = 'SMTP_PASSWORD'; Label = 'SMTP password'; Secret = $true }
+           @{ Key = 'MAIL_FROM'; Label = 'From address, e.g. DevBoard <no-reply@example.com>' }
+       ) }
+    @{ Service = 'devboard-analytics'; Title = 'Gemini - powers the analytics chatbot'
+       Fields = @( @{ Key = 'GEMINI_API_KEY'; Label = 'Gemini API key'; Secret = $true } ) }
+    @{ Service = 'devboard-integrations'; Title = 'GitHub webhook - must equal the secret set on your GitHub App webhook'
+       Fields = @( @{ Key = 'GITHUB_WEBHOOK_SECRET'; Label = 'Webhook secret'; Secret = $true } ) }
+)
+
 # -- helpers -----------------------------------------------------------------
 
 function Write-Step([int]$n, [string]$text) {
     Write-Host ''
-    Write-Host "[$n/5] $text" -ForegroundColor Cyan
+    Write-Host "[$n/6] $text" -ForegroundColor Cyan
 }
 
 function Write-Warn([string]$text) {
@@ -291,7 +314,69 @@ function Set-Secrets([string[]]$names) {
         [void](Set-IfPlaceholder $envs['devboard-email'] 'APP_URL' $FrontendUrl)
     }
 
-    # Save, and report key names only - never values.
+    return $envs
+}
+
+# -- 5. your accounts --------------------------------------------------------------
+
+function Read-Setting($field) {
+    $hint = 'Enter to skip'
+    if ($field.Default) { $hint = "Enter for $($field.Default)" }
+    $prompt = "  $($field.Label) [$hint]"
+    while ($true) {
+        if ($field.Secret) {
+            # Typed hidden, so it never shows on screen or in a screen share.
+            $secure = Read-Host $prompt -AsSecureString
+            $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+            try { $value = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+            finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+        } else {
+            $value = Read-Host $prompt
+        }
+        $value = "$value".Trim()
+        if (-not $value -and $field.Default) { $value = $field.Default }
+        if (-not $value -or -not $field.Pattern -or $value -match $field.Pattern) { return $value }
+        Write-Warn 'That does not look right, try again.'
+    }
+}
+
+# Quotes a value only when it needs it. Single quotes keep it literal for both
+# Docker's env_file and python-dotenv (no # comments, no $ expansion).
+function Format-EnvValue([string]$value) {
+    if ($value -match '^[A-Za-z0-9._@:/+=,-]*$') { return $value }
+    if (-not $value.Contains("'")) { return "'" + $value + "'" }
+    return '"' + ($value -replace '\\', '\\' -replace '"', '\"') + '"'
+}
+
+function Read-AccountSettings($envs) {
+    Write-Step 5 'Your accounts (press Enter to skip any of these)...'
+    $asked = $false
+    foreach ($group in $AccountSettings) {
+        $e = $envs[$group.Service]
+        if ($null -eq $e) { continue }
+        $todo = @($group.Fields | Where-Object { Test-Placeholder (Get-EnvValue $e $_.Key) })
+        if ($todo.Count -eq 0) { continue }
+
+        $asked = $true
+        Write-Host ''
+        Write-Host "  $($group.Title)"
+        $first = $true
+        foreach ($field in $todo) {
+            $value = Read-Setting $field
+            if (-not $value) {
+                if ($first) { Write-Host '  skip  (fill in later)'; break }
+                continue
+            }
+            $first = $false
+            Set-EnvValue $e $field.Key (Format-EnvValue $value)
+        }
+    }
+    if (-not $asked) { Write-Host '  ok    nothing to ask, all set already' }
+}
+
+# Save every .env; report key names only - never values.
+function Save-EnvFiles($envs) {
+    Write-Host ''
     $left = @()
     foreach ($name in $envs.Keys) {
         $e = $envs[$name]
@@ -312,7 +397,7 @@ function Set-Secrets([string[]]$names) {
 # -- 5. start --------------------------------------------------------------------
 
 function Start-Stack {
-    Write-Step 5 'Starting DevBoard...'
+    Write-Step 6 'Starting DevBoard...'
     docker info *> $null
     if ($LASTEXITCODE -ne 0) {
         Write-Warn 'Docker is not running. Start Docker Desktop, then run bootstrap.bat again.'
@@ -341,10 +426,13 @@ try {
     Test-Tools
     Invoke-Clone
     $names = New-EnvFiles
-    $left = Set-Secrets $names
+    $envs = Set-Secrets $names
+    if ($NoPrompt) { Write-Step 5 'Skipped (-NoPrompt).' }
+    else { Read-AccountSettings $envs }
+    $left = Save-EnvFiles $envs
 
     $started = $false
-    if ($NoStart) { Write-Step 5 'Skipped (-NoStart).' }
+    if ($NoStart) { Write-Step 6 'Skipped (-NoStart).' }
     else { $started = Start-Stack }
 
     Write-Host ''
@@ -353,6 +441,7 @@ try {
         Write-Host ' Fill these in by hand (your own accounts - no default):' -ForegroundColor Yellow
         foreach ($item in $left) { Write-Host "   $item" }
         Write-Host ' Then restart the service that uses it: redeploy.bat'
+        Write-Host ' (Or run bootstrap.bat again - it asks only for what is still missing.)'
         Write-Host ''
     }
     if ($started) {

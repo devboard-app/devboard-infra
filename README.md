@@ -22,11 +22,17 @@ It does everything:
 1. Clones every other repo next to `devboard-infra`, each at its working branch. The branches are listed at the top of `bootstrap.ps1`.
 2. Creates each `.env` from its `.env.example`.
 3. Generates every password and secret, and writes the same value everywhere it has to match (DB passwords, `JWT_SECRET`, `INTERNAL_API_KEY`).
-4. Starts the stack with `stack.yml`, migrations included.
+4. Asks for what only you have: SMTP login, Gemini API key, GitHub webhook secret. Passwords and keys are typed hidden. Press Enter to skip any of them.
+5. Starts the stack with `stack.yml`, migrations included.
 
-At the end it lists what it can't fill in for you: SMTP login, `GEMINI_API_KEY`, `GITHUB_WEBHOOK_SECRET`. Add those, then run `redeploy.bat` for that service.
+Skipped something? Run `bootstrap.bat` again. It asks only for what is still missing. Then run `redeploy.bat` for that service.
 
-Safe to re-run: it never overwrites a value that is already set. Use `bootstrap.bat -NoStart` to clone and configure without starting anything.
+Safe to re-run: it never overwrites a value that is already set.
+
+| Option | What it does |
+|---|---|
+| `bootstrap.bat -NoStart` | Clone and configure, don't start anything. |
+| `bootstrap.bat -NoPrompt` | Don't ask any questions. Fill in the SMTP login, Gemini key and webhook secret by hand later. |
 
 ---
 
