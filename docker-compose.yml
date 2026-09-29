@@ -18,9 +18,9 @@ services:
       INTEGRATIONS_DB_PASSWORD: ${INTEGRATIONS_DB_PASSWORD:-}
       ATTACHMENTS_DB_PASSWORD: ${ATTACHMENTS_DB_PASSWORD:-}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:15432:5432"
     volumes:
-      - devboard_pgdata:/var/lib/postgresql
+      - devboard-ic_pgdata:/var/lib/postgresql
       - ./init-db:/docker-entrypoint-initdb.d
     healthcheck:
       # -h 127.0.0.1, not the default socket: while init-db runs, Postgres is a
@@ -32,7 +32,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - devboard-network
+      - devboard-ic-network
   
   redis:
     image: redis:7-alpine
@@ -43,16 +43,16 @@ services:
     # whatever was in flight.
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:16379:6379"
     volumes:
-      - devboard_redisdata:/data
+      - devboard-ic_redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
     networks:
-      - devboard-network
+      - devboard-ic-network
 
   mongo:
     image: mongo:7
@@ -64,9 +64,9 @@ services:
       # Consumed by init-mongo/01-analytics-user.js on first initialisation only.
       ANALYTICS_DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:-}
     ports:
-      - "127.0.0.1:27017:27017"
+      - "127.0.0.1:17017:27017"
     volumes:
-      - devboard_mongodata:/data/db
+      - devboard-ic_mongodata:/data/db
       - ./init-mongo:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
@@ -74,7 +74,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - devboard-network
+      - devboard-ic-network
 
   minio:
     image: minio/minio
@@ -85,17 +85,17 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "127.0.0.1:9000:9000"   # S3 API
-      - "127.0.0.1:9001:9001"   # web console
+      - "127.0.0.1:19000:9000"   # S3 API
+      - "127.0.0.1:19001:9001"   # web console
     volumes:
-      - devboard_miniodata:/data
+      - devboard-ic_miniodata:/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 5s
       retries: 10
     networks:
-      - devboard-network
+      - devboard-ic-network
 
 # Explicit names, for the same reason the network is external: this file is
 # started both on its own (project "devboard-infra") and via the root compose
@@ -103,20 +103,20 @@ services:
 # so the two entry points would silently use two different sets of volumes and
 # the data would look like it had vanished.
 volumes:
-  devboard_pgdata:
-    name: devboard_pgdata
-  devboard_mongodata:
-    name: devboard_mongodata
-  devboard_miniodata:
-    name: devboard_miniodata
-  devboard_redisdata:
-    name: devboard_redisdata
+  devboard-ic_pgdata:
+    name: devboard-ic_pgdata
+  devboard-ic_mongodata:
+    name: devboard-ic_mongodata
+  devboard-ic_miniodata:
+    name: devboard-ic_miniodata
+  devboard-ic_redisdata:
+    name: devboard-ic_redisdata
 
 # External here as well as in every service file, so all eight can be merged
 # into one project by the root compose file without contradicting each other
 # (a definition says "create it", external says "don't"). Created once with:
-#   docker network create devboard-network
+#   docker network create devboard-ic-network
 networks:
-  devboard-network:
-    name: devboard-network
+  devboard-ic-network:
+    name: devboard-ic-network
     external: true

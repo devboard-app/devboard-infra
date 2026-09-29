@@ -72,13 +72,13 @@ if not exist "%ATTACHMENTS_DIR%\.env" (
 )
 
 :: ── Shared network ───────────────────────────────────────────
-:: Every compose file declares devboard-network as external, so something has
+:: Every compose file declares devboard-ic-network as external, so something has
 :: to create it. Doing it here keeps the eight files free of a definition that
 :: would conflict when the root compose merges them into one project.
-docker network inspect devboard-network >nul 2>&1
+docker network inspect devboard-ic-network >nul 2>&1
 if errorlevel 1 (
-    echo       Creating devboard-network...
-    docker network create devboard-network >nul
+    echo       Creating devboard-ic-network...
+    docker network create devboard-ic-network >nul
 )
 
 :: ── Start DB ─────────────────────────────────────────────────
@@ -371,11 +371,11 @@ echo  devboard-integrations : http://localhost:8005
 echo  devboard-analytics    : http://localhost:8006
 echo  devboard-attachments  : http://localhost:8007
 echo  devboard-web2 (app)   : http://localhost:8443
-echo  PostgreSQL            : localhost:5432
-echo  Redis                 : localhost:6379
-echo  MongoDB               : localhost:27017
-echo  MinIO API             : localhost:9000
-echo  MinIO Console         : http://localhost:9001
+echo  PostgreSQL            : localhost:15432
+echo  Redis                 : localhost:16379
+echo  MongoDB               : localhost:17017
+echo  MinIO API             : localhost:19000
+echo  MinIO Console         : http://localhost:19001
 echo.
 echo  To stop everything: stop.bat
 echo ============================================================

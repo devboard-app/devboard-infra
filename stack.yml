@@ -2,7 +2,7 @@
 #
 # Run from the DevBoard root (the directory holding all eight repos):
 #
-#   docker network create devboard-network                  # once, first run only
+#   docker network create devboard-ic-network                  # once, first run only
 #   docker compose -f devboard-infra/stack.yml up -d --build
 #   docker compose -f devboard-infra/stack.yml ps -a        # migrate-* show "Exited (0)" when done
 #   docker compose -f devboard-infra/stack.yml logs -f devboard-work
@@ -78,7 +78,7 @@ services:
       db:
         condition: service_healthy
     networks:
-      - devboard-network
+      - devboard-ic-network
 
   migrate-core:
     build: ../devboard-core
@@ -92,7 +92,7 @@ services:
       db:
         condition: service_healthy
     networks:
-      - devboard-network
+      - devboard-ic-network
 
   migrate-work:
     build: ../devboard-work
@@ -107,7 +107,7 @@ services:
       db:
         condition: service_healthy
     networks:
-      - devboard-network
+      - devboard-ic-network
 
   migrate-integrations:
     build: ../devboard-integrations
@@ -122,7 +122,7 @@ services:
       db:
         condition: service_healthy
     networks:
-      - devboard-network
+      - devboard-ic-network
 
   migrate-attachments:
     build: ../devboard-attachments
@@ -133,4 +133,4 @@ services:
       db:
         condition: service_healthy
     networks:
-      - devboard-network
+      - devboard-ic-network

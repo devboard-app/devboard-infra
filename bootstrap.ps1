@@ -303,6 +303,11 @@ function Set-Secrets([string[]]$names) {
     if ($att) {
         [void](Set-IfPlaceholder $att 'S3_ACCESS_KEY' (Get-EnvValue $infra 'MINIO_ROOT_USER'))
         [void](Set-IfPlaceholder $att 'S3_SECRET_KEY' (Get-EnvValue $infra 'MINIO_ROOT_PASSWORD'))
+        # MinIO's host port moved 9000 -> 19000 so it can't clash with another
+        # project's MinIO. The browser uploads to this address directly.
+        if ((Get-EnvValue $att 'S3_PUBLIC_ENDPOINT_URL') -eq 'http://localhost:9000') {
+            Set-EnvValue $att 'S3_PUBLIC_ENDPOINT_URL' 'http://localhost:19000'
+        }
     }
 
     # Plain defaults that are the same on every machine.
@@ -408,8 +413,8 @@ function Start-Stack {
         Write-Host '  skip  Start it later with: docker compose -f devboard-infra\stack.yml up -d --build'
         return $false
     }
-    docker network inspect devboard-network *> $null
-    if ($LASTEXITCODE -ne 0) { docker network create devboard-network | Out-Null }
+    docker network inspect devboard-ic-network *> $null
+    if ($LASTEXITCODE -ne 0) { docker network create devboard-ic-network | Out-Null }
     docker compose -f (Join-Path $InfraDir 'stack.yml') up -d --build
     if ($LASTEXITCODE -ne 0) { throw 'docker compose failed. Check the output above.' }
     return $true

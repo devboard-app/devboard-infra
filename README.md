@@ -69,14 +69,14 @@ setup.bat
 
 Shared parts (started by this folder's `docker-compose.yml`):
 
-| Container | Port | What it holds |
+| Container | Host port → container port | What it holds |
 |---|---|---|
-| `devboard-db` (Postgres 18) | 5432 | Five databases, see below. |
-| `devboard-redis` (Redis 7) | 6379 | The event stream `devboard:events`. Saved to disk (AOF), so events survive a restart. |
-| `devboard-mongo` (MongoDB 7) | 27017 | `activity_db`, the activity log. |
-| `devboard-minio` | 9000 API, 9001 console | Uploaded files. |
+| `devboard-db` (Postgres 18) | 15432 → 5432 | Five databases, see below. |
+| `devboard-redis` (Redis 7) | 16379 → 6379 | The event stream `devboard:events`. Saved to disk (AOF), so events survive a restart. |
+| `devboard-mongo` (MongoDB 7) | 17017 → 27017 | `activity_db`, the activity log. |
+| `devboard-minio` | 19000 → 9000 API, 19001 → 9001 console | Uploaded files. |
 
-All four ports are published to `127.0.0.1` only — reachable from this machine, not from the rest of the network.
+All four ports are published to `127.0.0.1` only — reachable from this machine, not from the rest of the network. The host ports are shifted off the defaults so DevBoard can run next to other projects that already use 5432, 6379, 27017 or 9000. Containers still talk to each other on the default ports (`devboard-db:5432` etc.).
 
 One Postgres container, five databases. Each service has its own user and database:
 
@@ -88,7 +88,7 @@ One Postgres container, five databases. Each service has its own user and databa
 | integrations | `integrations_db` | `integrations_user` |
 | attachments | `attachments_db` | `attachments_user` |
 
-All containers share one Docker network: `devboard-network`.
+All containers share one Docker network: `devboard-ic-network`.
 
 ---
 
@@ -116,7 +116,7 @@ Menu for `redeploy.bat`: `1` core, `2` auth, `3` email, `4` work, `5` integratio
 Run from the DevBoard root (the folder that holds all repos):
 
 ```bat
-docker network create devboard-network
+docker network create devboard-ic-network
 docker compose -f devboard-infra/stack.yml up -d --build
 ```
 
@@ -184,7 +184,7 @@ After a reset the databases are empty. To bring the old data back, use the resto
 
 | Problem | Try |
 |---|---|
-| `network devboard-network not found` | `docker network create devboard-network` |
+| `network devboard-ic-network not found` | `docker network create devboard-ic-network` |
 | Migration failed | Check the password in the service `.env` against the Postgres user. See "Settings". |
 | Service keeps restarting right after start | Wait 30 seconds. Postgres may not be healthy yet. |
 | Container name already in use | Another DevBoard project is running. Run `stop.bat` first. |
