@@ -93,7 +93,7 @@ docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d devboard-auth
 if errorlevel 1 (
     echo   [FAILED] devboard-auth         ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
-    echo   [OK]     devboard-auth         ->  http://localhost:8001 >> "%SUMMARY_FILE%"
+    echo   [OK]     devboard-auth         ->  http://localhost:18001 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 
@@ -103,7 +103,7 @@ docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
     echo   [FAILED] devboard-core         ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
-    echo   [OK]     devboard-core         ->  http://localhost:8003 >> "%SUMMARY_FILE%"
+    echo   [OK]     devboard-core         ->  http://localhost:18003 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 
@@ -113,7 +113,7 @@ docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
     echo   [FAILED] devboard-email        ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
-    echo   [OK]     devboard-email        ->  http://localhost:8002 >> "%SUMMARY_FILE%"
+    echo   [OK]     devboard-email        ->  http://localhost:18002 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 
@@ -123,7 +123,7 @@ docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
     echo   [FAILED] devboard-work         ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
-    echo   [OK]     devboard-work         ->  http://localhost:8004 >> "%SUMMARY_FILE%"
+    echo   [OK]     devboard-work         ->  http://localhost:18004 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 
@@ -133,7 +133,7 @@ docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
     echo   [FAILED] devboard-integrations ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
-    echo   [OK]     devboard-integrations ->  http://localhost:8005 >> "%SUMMARY_FILE%"
+    echo   [OK]     devboard-integrations ->  http://localhost:18005 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 
@@ -143,7 +143,7 @@ docker compose -f "%ANALYTICS_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
     echo   [FAILED] devboard-analytics    ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
-    echo   [OK]     devboard-analytics    ->  http://localhost:8006 >> "%SUMMARY_FILE%"
+    echo   [OK]     devboard-analytics    ->  http://localhost:18006 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 
@@ -153,7 +153,7 @@ docker compose -f "%ATTACHMENTS_DIR%\docker-compose.yml" up --build -d
 if errorlevel 1 (
     echo   [FAILED] devboard-attachments  ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
-    echo   [OK]     devboard-attachments  ->  http://localhost:8007 >> "%SUMMARY_FILE%"
+    echo   [OK]     devboard-attachments  ->  http://localhost:18007 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 

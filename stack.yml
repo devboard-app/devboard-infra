@@ -134,3 +134,38 @@ services:
         condition: service_healthy
     networks:
       - devboard-ic-network
+
+# ── Demo data ─────────────────────────────────────────────────
+# One-shot: fills a fresh install with the demo workspace from
+# devboard-analytics/scripts/seed_demo.py (users, teams, projects, sprints,
+# tickets, comments). Runs on the auth image, which already has httpx and
+# psycopg2, and reads auth's .env for DATABASE_URL_SYNC and INTERNAL_API_KEY.
+# The script is idempotent: on an existing install it finds everything already
+# there and exits 0 without changing anything.
+  seed-demo:
+    build: ../devboard-auth
+    env_file: ../devboard-auth/.env
+    environment:
+      SEED_AUTH_URL: http://devboard-auth:8000
+      SEED_CORE_URL: http://devboard-core:8000
+      SEED_WORK_URL: http://devboard-work:8000
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ../devboard-analytics/scripts/seed_demo.py:/seed/seed_demo.py:ro
+    command: python /seed/seed_demo.py
+    restart: on-failure:3
+    depends_on:
+      migrate-auth:
+        condition: service_completed_successfully
+      migrate-core:
+        condition: service_completed_successfully
+      migrate-work:
+        condition: service_completed_successfully
+      devboard-auth:
+        condition: service_started
+      devboard-core:
+        condition: service_started
+      devboard-work:
+        condition: service_started
+    networks:
+      - devboard-ic-network

@@ -363,13 +363,13 @@ echo.
 echo ============================================================
 echo  All services are running.
 echo.
-echo  devboard-auth         : http://localhost:8001
-echo  devboard-email        : http://localhost:8002
-echo  devboard-core         : http://localhost:8003
-echo  devboard-work         : http://localhost:8004
-echo  devboard-integrations : http://localhost:8005
-echo  devboard-analytics    : http://localhost:8006
-echo  devboard-attachments  : http://localhost:8007
+echo  devboard-auth         : http://localhost:18001
+echo  devboard-email        : http://localhost:18002
+echo  devboard-core         : http://localhost:18003
+echo  devboard-work         : http://localhost:18004
+echo  devboard-integrations : http://localhost:18005
+echo  devboard-analytics    : http://localhost:18006
+echo  devboard-attachments  : http://localhost:18007
 echo  devboard-web2 (app)   : http://localhost:8443
 echo  PostgreSQL            : localhost:15432
 echo  Redis                 : localhost:16379

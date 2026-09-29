@@ -58,13 +58,13 @@ setup.bat
 
 | Service | Port | What it is |
 |---|---|---|
-| devboard-auth | 8001 | Login, sign-up, tokens. |
-| devboard-email | 8002 | Sends emails. |
-| devboard-core | 8003 | User profiles. |
-| devboard-work | 8004 | Teams, projects, tickets, sprints. Plus an outbox relay container. |
-| devboard-integrations | 8005 | Slack, Discord, GitHub, notifications. Plus a worker container. |
-| devboard-analytics | 8006 | Activity log and reports. Plus a worker container. |
-| devboard-attachments | 8007 | File uploads. |
+| devboard-auth | 18001 | Login, sign-up, tokens. |
+| devboard-email | 18002 | Sends emails. |
+| devboard-core | 18003 | User profiles. |
+| devboard-work | 18004 | Teams, projects, tickets, sprints. Plus an outbox relay container. |
+| devboard-integrations | 18005 | Slack, Discord, GitHub, notifications. Plus a worker container. |
+| devboard-analytics | 18006 | Activity log and reports. Plus a worker container. |
+| devboard-attachments | 18007 | File uploads. |
 | devboard-web2 | 8443 | The web app (React). Runs the Vite dev server; its proxy forwards API calls to the services above. |
 
 Shared parts (started by this folder's `docker-compose.yml`):
