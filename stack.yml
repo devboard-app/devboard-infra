@@ -38,7 +38,7 @@
 # outcome. Adding depends_on here would break standalone `up` in each repo,
 # where devboard-db is not defined.
 
-name: devboard
+name: devboard-ic
 
 include:
   # Long syntax for infra only. Its file uses ${POSTGRES_USER} and friends, and

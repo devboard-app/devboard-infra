@@ -1,7 +1,7 @@
 # Pinned so this file and the root compose file resolve to the SAME project.
 # Every service sets an explicit container_name, which is global rather than
 # project-scoped, so two projects can never hold the same service at once.
-name: devboard
+name: devboard-ic
 
 services:
   db:
@@ -99,7 +99,7 @@ services:
 
 # Explicit names, for the same reason the network is external: this file is
 # started both on its own (project "devboard-infra") and via the root compose
-# file (project "devboard"). Without a fixed name Compose prefixes the project,
+# file (project "devboard-ic"). Without a fixed name Compose prefixes the project,
 # so the two entry points would silently use two different sets of volumes and
 # the data would look like it had vanished.
 volumes:
