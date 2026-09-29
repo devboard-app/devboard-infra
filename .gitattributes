@@ -1,0 +1,11 @@
+# Files that run inside Linux containers must keep LF endings, whatever the
+# clone's core.autocrlf says. With CRLF, init-db/01-init.sh's shebang becomes
+# "/bin/bash\r", Postgres skips the script, and no service user is created -
+# every service then fails with "password authentication failed".
+*.sh    text eol=lf
+*.js    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# cmd.exe misreads labels and GOTOs in LF-only batch files.
+*.bat   text eol=crlf
