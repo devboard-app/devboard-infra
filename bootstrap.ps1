@@ -35,6 +35,7 @@ $Repos = [ordered]@{
     'devboard-integrations' = 'dev'
     'devboard-analytics'    = 'feat/chat'
     'devboard-attachments'  = 'dev'
+    'devboard-mcp'          = 'dev'
     'devboard-web2'         = 'dev'
     'devboard-docs'         = 'dev'
 }

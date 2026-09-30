@@ -14,6 +14,7 @@ set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
+set MCP_DIR=%ROOT%..\devboard-mcp
 set WEB_DIR=%ROOT%..\devboard-web2
 
 echo.
@@ -71,6 +72,12 @@ if not exist "%ATTACHMENTS_DIR%\.env" (
     copy "%ATTACHMENTS_DIR%\.env.example" "%ATTACHMENTS_DIR%\.env" >nul
 )
 
+if not exist "%MCP_DIR%\.env" (
+    echo [WARN] devboard-mcp\.env not found.
+    echo        Copying from .env.example — fill in the real values before running.
+    copy "%MCP_DIR%\.env.example" "%MCP_DIR%\.env" >nul
+)
+
 :: ── Shared network ───────────────────────────────────────────
 :: Every compose file declares devboard-ic-network as external, so something has
 :: to create it. Doing it here keeps the eight files free of a definition that
@@ -82,7 +89,7 @@ if errorlevel 1 (
 )
 
 :: ── Start DB ─────────────────────────────────────────────────
-echo [1/10] Starting database...
+echo [1/11] Starting database...
 echo       (First run may take a moment)
 echo.
 
@@ -115,7 +122,7 @@ echo       Done.
 echo.
 
 :: ── Create service users and databases ───────────────────────
-echo [2/10] Setting up service users and databases...
+echo [2/11] Setting up service users and databases...
 
 for /f "usebackq tokens=*" %%i in (`powershell -command "(Get-Content '%INFRA_DIR%.env') | Select-String '^POSTGRES_USER' | ForEach-Object { $_ -replace 'POSTGRES_USER=', '' }"`) do set PG_USER=%%i
 
@@ -231,7 +238,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start auth ──────────────────────────────────────
-echo [3/10] Building and starting devboard-auth...
+echo [3/11] Building and starting devboard-auth...
 docker compose -f "%AUTH_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -250,7 +257,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start core ──────────────────────────────────────
-echo [4/10] Building and starting devboard-core...
+echo [4/11] Building and starting devboard-core...
 docker compose -f "%CORE_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -269,7 +276,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start email ─────────────────────────────────────
-echo [5/10] Building and starting devboard-work...
+echo [5/11] Building and starting devboard-work...
 docker compose -f "%WORK_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -287,7 +294,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [6/10] Building and starting devboard-email...
+echo [6/11] Building and starting devboard-email...
 docker compose -f "%EMAIL_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -298,7 +305,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start integrations ──────────────────────────────
-echo [7/10] Building and starting devboard-integrations...
+echo [7/11] Building and starting devboard-integrations...
 docker compose -f "%INTEGRATIONS_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -317,7 +324,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start analytics ─────────────────────────────────
-echo [8/10] Building and starting devboard-analytics...
+echo [8/11] Building and starting devboard-analytics...
 docker compose -f "%ANALYTICS_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -328,7 +335,7 @@ if errorlevel 1 (
 echo.
 
 :: ── Build and start attachments ───────────────────────────────
-echo [9/10] Building and starting devboard-attachments...
+echo [9/11] Building and starting devboard-attachments...
 docker compose -f "%ATTACHMENTS_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -346,11 +353,24 @@ if errorlevel 1 (
 )
 echo.
 
+:: ── Build and start mcp ────────────────────────────────────────
+:: No migrations — devboard-mcp is a stateless gateway with no database. It
+:: forwards the caller's token to devboard-work.
+echo [10/11] Building and starting devboard-mcp...
+docker compose -f "%MCP_DIR%\docker-compose.yml" up --build -d
+
+if errorlevel 1 (
+    echo.
+    echo [ERROR] devboard-mcp compose failed. Check the output above.
+    exit /b 1
+)
+echo.
+
 :: ── Build and start web ────────────────────────────────────────
 :: No migrations and no .env here — devboard-web2 is the React frontend, with
 :: no database of its own. It runs the Vite dev server, whose proxy forwards
 :: API calls to the services above.
-echo [10/10] Building and starting devboard-web2...
+echo [11/11] Building and starting devboard-web2...
 docker compose -f "%WEB_DIR%\docker-compose.yml" up --build -d
 
 if errorlevel 1 (
@@ -370,6 +390,7 @@ echo  devboard-work         : http://localhost:18004
 echo  devboard-integrations : http://localhost:18005
 echo  devboard-analytics    : http://localhost:18006
 echo  devboard-attachments  : http://localhost:18007
+echo  devboard-mcp          : http://localhost:18009
 echo  devboard-web2 (app)   : http://localhost:8443
 echo  PostgreSQL            : localhost:15432
 echo  Redis                 : localhost:16379

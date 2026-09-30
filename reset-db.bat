@@ -17,7 +17,7 @@ setlocal EnableDelayedExpansion
 set ROOT=%~dp0
 set INFRA_DIR=%ROOT%
 set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
-set SERVICES=auth email core work integrations analytics attachments web
+set SERVICES=auth email core work integrations analytics attachments mcp web
 
 echo.
 echo ============================================================

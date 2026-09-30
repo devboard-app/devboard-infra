@@ -65,6 +65,7 @@ setup.bat
 | devboard-integrations | 18005 | Slack, Discord, GitHub, notifications. Plus a worker container. |
 | devboard-analytics | 18006 | Activity log and reports. Plus a worker container. |
 | devboard-attachments | 18007 | File uploads. |
+| devboard-mcp | 18009 | MCP gateway for Claude. Stateless, no database; forwards the caller's token to devboard-work. |
 | devboard-web2 | 8443 | The web app (React). Runs the Vite dev server; its proxy forwards API calls to the services above. |
 
 Shared parts (started by this folder's `docker-compose.yml`):
@@ -100,12 +101,12 @@ Run them from this folder.
 |---|---|---|
 | `bootstrap.bat` | Clones all repos, writes every `.env` with matching secrets, starts everything. | Once, on a new machine. |
 | `setup.bat` | Starts infra, creates users and databases, builds and starts every service, runs migrations. | First run. Or after a reset. |
-| `redeploy.bat` | Menu. Rebuilds and restarts one service (`1` to `8`) or all (`0`). | After you change code. |
+| `redeploy.bat` | Menu. Rebuilds and restarts one service (`1` to `9`) or all (`0`). | After you change code. |
 | `migrate.bat` | Menu. Runs migrations: `0` all, `1` auth, `2` core, `3` work, `4` integrations, `5` attachments. | After you change a model. |
 | `stop.bat` | Saves a Postgres backup to `backups\devboard_all.sql`, then stops everything. Data stays in the volumes. | End of the day. |
 | `reset-db.bat` | **Deletes all data** and rebuilds. Backs up first. | When the data is broken and you want a clean start. |
 
-Menu for `redeploy.bat`: `1` core, `2` auth, `3` email, `4` work, `5` integrations, `6` analytics, `7` attachments, `8` web.
+Menu for `redeploy.bat`: `1` core, `2` auth, `3` email, `4` work, `5` integrations, `6` analytics, `7` attachments, `8` web, `9` mcp.
 
 `redeploy.bat` does not run migrations. Run `migrate.bat` after it if models changed.
 

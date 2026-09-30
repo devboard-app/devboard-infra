@@ -9,6 +9,7 @@ set WORK_DIR=%ROOT%..\devboard-work
 set INTEGRATIONS_DIR=%ROOT%..\devboard-integrations
 set ANALYTICS_DIR=%ROOT%..\devboard-analytics
 set ATTACHMENTS_DIR=%ROOT%..\devboard-attachments
+set MCP_DIR=%ROOT%..\devboard-mcp
 set WEB_DIR=%ROOT%..\devboard-web2
 
 set SUMMARY_FILE=%TEMP%\devboard_redeploy_summary.txt
@@ -28,6 +29,7 @@ echo  5 - devboard-integrations
 echo  6 - devboard-analytics
 echo  7 - devboard-attachments
 echo  8 - devboard-web2 (frontend)
+echo  9 - devboard-mcp
 echo.
 set /p CHOICE="Select service to redeploy: "
 
@@ -40,6 +42,7 @@ if "%CHOICE%"=="5" goto INTEGRATIONS
 if "%CHOICE%"=="6" goto ANALYTICS
 if "%CHOICE%"=="7" goto ATTACHMENTS
 if "%CHOICE%"=="8" goto WEB
+if "%CHOICE%"=="9" goto MCP
 
 echo Invalid choice.
 exit /b 1
@@ -53,6 +56,7 @@ call :RUN_INTEGRATIONS
 call :RUN_ANALYTICS
 call :RUN_ATTACHMENTS
 call :RUN_WEB
+call :RUN_MCP
 goto DONE
 
 :AUTH
@@ -85,6 +89,10 @@ goto DONE
 
 :WEB
 call :RUN_WEB
+goto DONE
+
+:MCP
+call :RUN_MCP
 goto DONE
 
 :RUN_AUTH
@@ -164,6 +172,16 @@ if errorlevel 1 (
     echo   [FAILED] devboard-web2         ->  check docker logs >> "%SUMMARY_FILE%"
 ) else (
     echo   [OK]     devboard-web2         ->  http://localhost:8443 >> "%SUMMARY_FILE%"
+)
+exit /b 0
+
+:RUN_MCP
+echo Redeploying devboard-mcp...
+docker compose -f "%MCP_DIR%\docker-compose.yml" up --build -d
+if errorlevel 1 (
+    echo   [FAILED] devboard-mcp          ->  check docker logs >> "%SUMMARY_FILE%"
+) else (
+    echo   [OK]     devboard-mcp          ->  http://localhost:18009 >> "%SUMMARY_FILE%"
 )
 exit /b 0
 
